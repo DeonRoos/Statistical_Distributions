@@ -1,2 +1,5 @@
-# Statistical_Distributions
-Repository for a shiny app to explore various probabilistic distributions.
+# Statistical Distributions Gallery
+
+This is a repository for a shiny app to explore various probabilistic distributions.
+
+The app can be accessed at: https://datacards-modellingteam.shinyapps.io/Distributions/
