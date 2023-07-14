@@ -353,20 +353,21 @@ server <- function(input, output, session) {
     distribution <- input$distribution
     
     text <- switch(distribution,
-                   "Normal" = "Weight, change in weight over time, wing length.",
-                   "Poisson" = "Number of offspring, number of animals, number of plant seeds.",
-                   "Uniform" = "Random number generation, lottery tickets, selection between alternatives.",
-                   "Beta" = "Proportions, probabilities, mixture models.",
-                   "T" = "Student's t-test, regression, hypothesis testing for small samples.",
-                   "Binomial" = "Number of success in a fixed number of trials, coin tosses.",
-                   "Exponential" = "Time between events, waiting times, survival analysis.",
-                   "Gamma" = "Insurance claims, rainfall, duration until failure.",
-                   "Log-Normal" = "Income, stock prices, financial data.",
-                   "Half-Cauchy" = "Scale parameters, Bayesian inference, extreme value analysis.",
-                   "Tweedie" = "Insurance claims, financial data, ecological data.",
-                   "Wald" = "Estimating the precision of an estimate, modeling travel times.",
-                   "ZIP" = "Disease counts, ecological data, count data with excess zeros.",
-                   "Bernoulli" = "Binary outcomes, success/failure, coin tosses."
+                   "Normal" = "Plant height | Animal Body Mass | Exam Scores | IQ Scores | Blood Pressure",
+                   "Poisson" = "Number of fish caught in a lake | Number of bird sightings in a day | Number of customer arrivals at a store | Number of phone calls received in an hour | Number of defects in a production line",
+                   "Uniform" = "Randomly generated lottery numbers | Randomly selected time intervals | Randomly generated test scores",
+                   "Beta" = "Proportion of seeds germinating in different soil types | Proportion of individuals exhibiting a certain behavior in a population |
+                   Conversion rates of website visitors | Proportion of defective items in a manufacturing process | Likelihood of customer satisfaction ratings",
+                   "T" = "Body length of fish species A | Height of tree species B | Test scores of students in a math exam | Reaction times of participants in a cognitive task | Weight of randomly selected packages in a delivery service",
+                   "Binomial" = "Number of successful pollinations | Number of infected individuals | Number of heads in coin flips | Number of defective products | Number of students passing a test",
+                   "Exponential" = "Time between tree seed dispersal | Time between insect emergence events | Time until a light bulb burns out | Time until a customer arrives at a store | Time until a package is delivered",
+                   "Gamma" = "Growth rate of plant populations | Lifespan of mice | Time until a car battery needs replacement | Time until the next earthquake | Time until a computer hard drive fails",
+                   "Log-Normal" = "Height of trees | Lifespan of birds | Wealth distribution in a population | Time until a website receives a new visitor | Size of fish in a lake",
+                   "Half-Cauchy" = "Tree trunk diameter | Wingspan of birds | Reaction times in a population | Length of rivers | Duration of animal vocalizations",
+                   "Tweedie" = "Species abundance in a habitat | Rainfall intensity | Number of insurance claims | Household electricity consumption | Traffic accidents per day",
+                   "Wald" = "Impala height | Reaction time in a cognitive task | Time until equipment failure | Blood pressure measurement | Distance between foraging locations",
+                   "ZIP" = "Tree species count in a forest | Number of bird sightings in a day | Number of software bugs in a program | Number of car accidents at an intersection | Number of customer complaints in a week",
+                   "Bernoulli" = "Rainfall occurrence in a day | Presence of a particular species in a habitat | Success of a marketing campaign (conversion or not) | Customer churn (lost or retained) | Occurrence of a disease in a population"
     )
     
     text
