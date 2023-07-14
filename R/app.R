@@ -44,7 +44,7 @@ ui <- fluidPage(
         inputId = "distribution",
         label = "Select distribution",
         choices = list(
-          Continuous = sort(c("Normal", "Uniform", "Beta", "Student's T", "Exponential", "Gamma", "Log-Normal", "Half-Cauchy", "Tweedie", "Wald")),
+          Continuous = c("Normal", sort(c("Uniform", "Beta", "Student's T", "Exponential", "Gamma", "Log-Normal", "Half-Cauchy", "Tweedie", "Wald"))),
           Discrete = sort(c("Poisson", "Binomial", "Bernoulli", "ZIP", "Negative Binomial"))
         ),
         options = list(
