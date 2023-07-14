@@ -39,7 +39,7 @@ ui <- fluidPage(
       h4("App guidance"),
       h6("This app allows users to explore features of various probabilistic distributions. 
          In this panel, users may select a distribution, select parameters to visualise for that distribution, 
-         and select the number of random values to be generated."),
+         and select the number of random values to be generated. The user may also select to visualise multiple parameter combinations if they so wish."),
       pickerInput(
         inputId = "distribution",
         label = "Select distribution",
@@ -55,11 +55,11 @@ ui <- fluidPage(
       h4("Range of possible values"),
       h6("Below you may specify the minimum and maximum values within which you would like to know the probability 
          density function and select the number of observations to randomly generate from the current distribution"),
-      numericInput("xmin", "Minimum value to view:", value = -10),
-      numericInput("xmax", "Maximum value to view:", value = 10),
-      numericInput("nobs", "Number of values to generate:", value = 100),
+      numericInput("xmin", "Minimum value to view:", value = -10, step = 0.5),
+      numericInput("xmax", "Maximum value to view:", value = 10), step = 0.5,
+      numericInput("nobs", "Number of values to generate:", value = 100, min = 1, max = 5000, step = 25),
       tags$hr(style = "border-color: #00A68A;"),
-      h4("Select the number of parameter combinations you wish to be shown simultaneously"),
+      h4("Number of parameter combinations"),
       numericInput("numCombinations", "Number of combinations:", value = 1, min = 1, max = 10),
       tags$hr(style = "border-color: #00A68A;"),
       h4("Distribution specific parameters"),
@@ -69,33 +69,38 @@ ui <- fluidPage(
     mainPanel(
       id = "main",
       tags$style("#myTextOutput { font-size: 20px; color: #00A68A; font-weight: bold; }"),
-      div(id = "myTextOutput", textOutput("distName")),
-      h4("Brief summary"),
-      textOutput("distributionText"),
-      br(),
-      h5("Distributrion details"),
-      h6("Notation:"),
-      uiOutput("distributionNote"),
-      h6("where the probability density function is given as:"),
-      uiOutput("distributionPDF"),
-      tags$hr(style = "border-color: #00A68A;"),
-      br(),
-      plotOutput("densityPlot"),
-      h6("Fig. 1: The probability density function visualised, whereby values which could be generated (x-axis) occur at different densities (y-axis) given the parameter values supplied."),
-      tags$hr(style = "border-color: #00A68A;"),
-      br(),
-      plotOutput("randomPlot"),
-      h6("Fig. 2: Randomly generated values based on the PDF, the number of observations requested, and the specific parameter values supplied."),
-      br(),
-      tags$hr(style = "border-color: #00A68A;"),
-      h4("Summary of the distribution"),
-      textOutput("detailed"),
-      h4("Examples of data generated from this distribution"),
-      textOutput("distributionEG"),
-      tags$hr(style = "border-color: #00A68A;"),
-      br(),
-      br(),
-      br()
+      fluidRow(
+        column(
+          div(id = "myTextOutput", textOutput("distName")),
+          width = 6,
+          plotOutput("densityPlot"),
+          h6("Fig. 1: The probability density function visualized, whereby values which could be generated (x-axis) occur at different densities (y-axis) given the parameter values supplied."),
+          br(),
+          tags$hr(style = "border-color: #00A68A;"),
+          br(),
+          plotOutput("randomPlot"),
+          h6("Fig. 2: Randomly generated values based on the PDF, the number of observations requested, and the specific parameter values supplied.")
+        ),
+        column(
+          width = 6,
+          h4("Brief summary"),
+          textOutput("distributionText"),
+          br(),
+          textOutput("detailed"),
+          br(),
+          tags$hr(style = "border-color: #00A68A;"),
+          br(),
+          h4("Distribution details"),
+          h6("Notation:"),
+          uiOutput("distributionNote"),
+          h6("where the probability density function is given as:"),
+          uiOutput("distributionPDF"),
+          br(),
+          tags$hr(style = "border-color: #00A68A;"),
+          h4("Examples of data generated from this distribution"),
+          textOutput("distributionEG")
+        )
+      )
     )
   )
 )
@@ -168,7 +173,7 @@ server <- function(input, output, session) {
                  numericInput(paste0("pi_", i), withMathJax(helpText("Probability (\\(\\pi\\)):")), value = 0.2, min = 0, max = 1, step = 0.1)
                ),
                "Bernoulli" = tagList(
-                 numericInput(paste0("p_", i), withMathJax(helpText("Probability (\\(p\\)):")), value = 1, min = 0, max = 1, step = 0.1)
+                 numericInput(paste0("p_", i), withMathJax(helpText("Probability (\\(p\\)):")), value = 0.5, min = 0, max = 1, step = 0.1)
                )
         )
       )
@@ -307,8 +312,9 @@ server <- function(input, output, session) {
       geom_line(size = 1) +
       theme_minimal() +
       scale_color_brewer(palette = "Set2") +
-      ggtitle(paste(input$distribution, "Distribution: Probability Density Function")) +
-      xlab("Value generated from current distribution") +
+      scale_y_continuous(limits = c(0, NA)) +
+      ggtitle(paste("Probability Density Function for the", input$distribution, "distribution")) +
+      xlab("Possible values from the current distribution") +
       ylab("Density of value in hypothetical data") +
       guides(color = guide_legend(title = "Combination")) +
       theme(
@@ -409,7 +415,7 @@ server <- function(input, output, session) {
                      withMathJax(paste0("$$\\mathcal{HC}(\\alpha)$$"))
                    ),
                    "Tweedie" = tagList(
-                     withMathJax(paste0("$$TW_p(\\mu, \\lambda)$$")),
+                     withMathJax(paste0("$$TW_p(\\mu, \\phi)$$")),
                    ),
                    "Wald" = tagList(
                      withMathJax(paste0("$$\\mathcal{IG}(\\mu, \\lambda)$$")),
@@ -437,16 +443,16 @@ server <- function(input, output, session) {
                              "Uniform" = list(xmin = -5, xmax = 5),
                              "Poisson" = list(xmin = 0, xmax = 10),
                              "Beta" = list(xmin = 0, xmax = 1),
-                             "T" = list(xmin = 0, xmax = 10),
-                             "Binomial" = list(xmin = 0, xmax = 10),
+                             "T" = list(xmin = -10, xmax = 10),
+                             "Binomial" = list(xmin = -1, xmax = 10),
                              "Exponential" = list(xmin = 0, xmax = 10),
                              "Gamma" = list(xmin = 0, xmax = 10),
                              "Log-Normal" = list(xmin = 0, xmax = 10),
-                             "Half-Cauchy" = list(xmin = -10, xmax = 10),
+                             "Half-Cauchy" = list(xmin = 0, xmax = 10),
                              "Tweedie" = list(xmin = 0.1, xmax = 10),
                              "Wald" = list(xmin = 0, xmax = 10),
-                             "ZIP" = list(xmin = 0, xmax = 10),
-                             "Bernoulli" = list(xmin = 0, xmax = 1),
+                             "ZIP" = list(xmin = -1, xmax = 10),
+                             "Bernoulli" = list(xmin = -0.1, xmax = 1.1),
                              NULL # Default case (if no distribution is selected)
     )
     
@@ -522,7 +528,7 @@ server <- function(input, output, session) {
       scale_color_brewer(palette = "Set2") +
       scale_fill_brewer(palette = "Set2") +
       scale_x_continuous(limits = c(xmin, xmax)) +
-      ggtitle(paste(input$distribution, "Distribution: Randomly generated values")) +
+      ggtitle(paste(input$nobs, "randomly generated values from the", input$distribution, "distribution:")) +
       xlab("Randomly generated values from current distribution") +
       ylab("Frequency") +
       guides(color = guide_legend(title = "Combination"), fill = guide_legend(title = "Combination")) +
