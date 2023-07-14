@@ -44,8 +44,8 @@ ui <- fluidPage(
         inputId = "distribution",
         label = "Select distribution",
         choices = list(
-          Continuous = c("Normal", "Uniform", "Beta", "T", "Exponential", "Gamma", "Log-Normal", "Half-Cauchy", "Tweedie", "Wald"),
-          Discrete = c("Poisson", "Binomial", "Bernoulli", "ZIP")
+          Continuous = sort(c("Normal", "Uniform", "Beta", "Student's T", "Exponential", "Gamma", "Log-Normal", "Half-Cauchy", "Tweedie", "Wald")),
+          Discrete = sort(c("Poisson", "Binomial", "Bernoulli", "ZIP", "Negative Binomial"))
         ),
         options = list(
           `live-search` = TRUE
@@ -140,7 +140,7 @@ server <- function(input, output, session) {
                  numericInput(paste0("alpha_", i), withMathJax(helpText("Shape 1 (\\(\\alpha\\)):")), value = 3),
                  numericInput(paste0("beta_", i), withMathJax(helpText("Shape 2 (\\(\\beta\\)):")), value = 2)
                ),
-               "T" = tagList(
+               "Student's T" = tagList(
                  numericInput(paste0("df_", i), withMathJax(helpText("Degrees of freedom (\\(\\nu\\)):")), value = 2)
                ),
                "Binomial" = tagList(
@@ -176,6 +176,10 @@ server <- function(input, output, session) {
                ),
                "Bernoulli" = tagList(
                  numericInput(paste0("p_", i), withMathJax(helpText("Probability (\\(p\\)):")), value = 0.5, min = 0, max = 1, step = 0.1)
+               ),
+               "Negative Binomial" = tagList(
+                 numericInput(paste0("size_", i), withMathJax(helpText("Size (\\(n\\)):")), value = 1, min = 0),
+                 numericInput(paste0("mu_", i), withMathJax(helpText("Mean (\\(\\mu\\)):")), value = 3, min = 0)
                )
         )
       )
@@ -200,7 +204,7 @@ server <- function(input, output, session) {
                    "Beta" = tagList(
                      withMathJax(paste0("$$f(x) = \\frac{\\Gamma(\\alpha + \\beta)}{\\Gamma(\\alpha)\\Gamma(\\beta)}x^{\\alpha-1}(1-x)^{\\beta-1}$$"))
                    ),
-                   "T" = tagList(
+                   "Student's T" = tagList(
                      withMathJax(paste0("$$f(x) = \\frac{\\Gamma(\\frac{\\nu + 1}{2})}{\\sqrt{\\nu\\pi}\\Gamma(\\frac{\\nu}{2})}(1+\\frac{x^2}{\\nu})^{-\\frac{\\nu+1}{2}}$$"))
                    ),
                    "Binomial" = tagList(
@@ -234,6 +238,9 @@ server <- function(input, output, session) {
                    ),
                    "Bernoulli" = tagList(
                      withMathJax(paste0("$$f(x) = p^{x}(1-p)^{1-x} $$"))
+                   ),
+                   "Negative Binomial" = tagList(
+                     withMathJax(paste0("$$f(x) = \\frac{\\Gamma(x-n)}{\\Gamma(n)x!}p^n(1-p)^x$$"))
                    )
     )
     
@@ -264,7 +271,7 @@ server <- function(input, output, session) {
                x <- seq(xmin, xmax, length.out = 100)
                dbeta(x, shape1 = input[[paste0("alpha_", i)]], shape2 = input[[paste0("beta_", i)]])
              },
-             "T" = {
+             "Student's T" = {
                x <- seq(xmin, xmax, length.out = 100)
                dt(x, df = input[[paste0("df_", i)]])
              },
@@ -303,6 +310,10 @@ server <- function(input, output, session) {
              "Bernoulli" = {
                x <- seq(xmin, xmax, length.out = 100)
                dbern(as.integer(x), p = input[[paste0("p_", i)]])
+             },
+             "Negative Binomial" = {
+               x <- seq(xmin, xmax, length.out = 100)
+               dnbinom(as.integer(x), mu = input[[paste0("mu_", i)]], size = input[[paste0("size_", i)]])
              }
       )
     })
@@ -342,7 +353,7 @@ server <- function(input, output, session) {
                    "Poisson" = "The Poisson distribution is a discrete probability distribution for positive data.",
                    "Uniform" = "The Uniform distribution is a bounded continuous probability distribution.",
                    "Beta" = "The Beta distribution is a continuous probability distribution defined on the interval [0,1].",
-                   "T" = "The T distribution is a continuous probability distribution similar to the Normal distribution but with greater variation at the extremes.",
+                   "Student's T" = "The Student's T distribution is a continuous probability distribution similar to the Normal distribution but with greater variation at the extremes.",
                    "Binomial" = "The Binomial distribution is a discrete probability distribution for binary outcomes with a fixed number of trials.",
                    "Exponential" = "The Exponential distribution is a continuous probability distribution for the time between events in a Poisson process.",
                    "Gamma" = "The Gamma distribution is a continuous probability distribution often used for modeling waiting times or duration until an event.",
@@ -351,7 +362,8 @@ server <- function(input, output, session) {
                    "Tweedie" = "The Tweedie distribution is a continuous probability distribution often used for modeling data with excess zeros and overdispersion.",
                    "Wald" = "The Wald distribution, also known as the Inverse Gaussian distribution, is a continuous probability distribution used for modeling positive variables with skewed distributions.",
                    "ZIP" = "The Zero-Inflated Poisson (ZIP) distribution is a discrete probability distribution that combines a Poisson distribution with excess zeros. It is often used to model count data with an excess number of zero values.",
-                   "Bernoulli" = "The Bernoulli distribution is a discrete probability distribution that represents a special case of a Binomial whereby there is a single trial (rather than > 1)."
+                   "Bernoulli" = "The Bernoulli distribution is a discrete probability distribution that represents a special case of a Binomial whereby there is a single trial (rather than > 1).",
+                   "Negative Binomial" = "The Negative Binomial distribution is a discrete probability distribution that can either represent the number of failures or the number of trials."
     )
     
     text
@@ -366,7 +378,7 @@ server <- function(input, output, session) {
                    "Uniform" = "Randomly generated lottery numbers | Randomly selected time intervals | Randomly generated test scores",
                    "Beta" = "Proportion of seeds germinating in different soil types | Proportion of individuals exhibiting a certain behavior in a population |
                    Conversion rates of website visitors | Proportion of defective items in a manufacturing process | Likelihood of customer satisfaction ratings",
-                   "T" = "Body length of fish species A | Height of tree species B | Test scores of students in a math exam | Reaction times of participants in a cognitive task | Weight of randomly selected packages in a delivery service",
+                   "Student's T" = "Body length of fish species A | Height of tree species B | Test scores of students in a math exam | Reaction times of participants in a cognitive task | Weight of randomly selected packages in a delivery service",
                    "Binomial" = "Number of successful pollinations | Number of infected individuals | Number of heads in coin flips | Number of defective products | Number of students passing a test",
                    "Exponential" = "Time between tree seed dispersal | Time between insect emergence events | Time until a light bulb burns out | Time until a customer arrives at a store | Time until a package is delivered",
                    "Gamma" = "Growth rate of plant populations | Lifespan of mice | Time until a car battery needs replacement | Time until the next earthquake | Time until a computer hard drive fails",
@@ -375,7 +387,8 @@ server <- function(input, output, session) {
                    "Tweedie" = "Species abundance in a habitat | Rainfall intensity | Number of insurance claims | Household electricity consumption | Traffic accidents per day",
                    "Wald" = "Impala height | Reaction time in a cognitive task | Time until equipment failure | Blood pressure measurement | Distance between foraging locations",
                    "ZIP" = "Tree species count in a forest | Number of bird sightings in a day | Number of software bugs in a program | Number of car accidents at an intersection | Number of customer complaints in a week",
-                   "Bernoulli" = "Rainfall occurrence in a day | Presence of a particular species in a habitat | Success of a marketing campaign (conversion or not) | Customer churn (lost or retained) | Occurrence of a disease in a population"
+                   "Bernoulli" = "Rainfall occurrence in a day | Presence of a particular species in a habitat | Success of a marketing campaign (conversion or not) | Customer churn (lost or retained) | Occurrence of a disease in a population",
+                   "Negative Binomial" = "Bird species richness in a forest | Number of individuals in a population sample | Number of customer complaints received in a day | Time until a machine fails | Number of goals scored in a football match"
     )
     
     text
@@ -398,7 +411,7 @@ server <- function(input, output, session) {
                    "Beta" = tagList(
                      withMathJax(paste0("$$Beta(\\alpha, \\beta)$$"))
                    ),
-                   "T" = tagList(
+                   "Student's T" = tagList(
                      withMathJax(paste0("$$T(\\nu)$$"))
                    ),
                    "Binomial" = tagList(
@@ -428,6 +441,9 @@ server <- function(input, output, session) {
                    ),
                    "Bernoulli" = tagList(
                      withMathJax(paste0("$$Bern(p)$$"))
+                   ),
+                   "Negative Binomial" = tagList(
+                     withMathJax(paste0("$$NB(\\mu, n)$$")),
                    )
     )
     
@@ -445,16 +461,17 @@ server <- function(input, output, session) {
                              "Uniform" = list(xmin = -5, xmax = 5),
                              "Poisson" = list(xmin = 0, xmax = 10),
                              "Beta" = list(xmin = 0, xmax = 1),
-                             "T" = list(xmin = -10, xmax = 10),
+                             "Student's T" = list(xmin = -10, xmax = 10),
                              "Binomial" = list(xmin = -1, xmax = 10),
                              "Exponential" = list(xmin = 0, xmax = 10),
                              "Gamma" = list(xmin = 0, xmax = 10),
                              "Log-Normal" = list(xmin = 0, xmax = 10),
                              "Half-Cauchy" = list(xmin = 0, xmax = 10),
-                             "Tweedie" = list(xmin = 0.1, xmax = 10),
+                             "Tweedie" = list(xmin = 0, xmax = 10),
                              "Wald" = list(xmin = 0, xmax = 10),
                              "ZIP" = list(xmin = -1, xmax = 10),
                              "Bernoulli" = list(xmin = -0.1, xmax = 1.1),
+                             "Negative Binomial" = list(xmin = 0, xmax = 10),
                              NULL # Default case (if no distribution is selected)
     )
     
@@ -483,7 +500,7 @@ server <- function(input, output, session) {
              "Beta" = {
                rbeta(nobs, shape1 = input[[paste0("alpha_", i)]], shape2 = input[[paste0("beta_", i)]])
              },
-             "T" = {
+             "Student's T" = {
                rt(nobs, df = input[[paste0("df_", i)]])
              },
              "Binomial" = {
@@ -512,6 +529,9 @@ server <- function(input, output, session) {
              },
              "Bernoulli" = {
                rbern(nobs, p = input[[paste0("p_", i)]])
+             },
+             "Negative Binomial" = {
+               rnbinom(nobs, size = input[[paste0("size_", i)]], mu = input[[paste0("mu_", i)]])
              }
       )
     })
@@ -630,7 +650,7 @@ server <- function(input, output, session) {
                      "It's important to note that the Beta distribution can represent a wide range",
                      "of shapes and behaviors, making it a versatile tool in statistical modeling."
                    ),
-                   "T" = paste(
+                   "Student's T" = paste(
                      "The Student's T distribution, also known as the T distribution, is a probability",
                      "distribution that is commonly used for statistical inference when the sample",
                      "size is small or when the population standard deviation is unknown. It is",
@@ -918,6 +938,42 @@ server <- function(input, output, session) {
                      "The Bernoulli distribution provides a simple and intuitive way to model",
                      "binary events with known probabilities. It is a fundamental distribution",
                      "that forms the basis for many statistical analyses and models."
+                   ),
+                   "Negative Binomial" = paste(
+                     "The Negative Binomial distribution is a probability distribution that models",
+                     "the number of trials required to achieve a certain number of successes, where",
+                     "each trial has a fixed probability of success. An alternative parametrization",
+                     "(often used in ecology) uses the mean, size, and the dispersion",
+                     "parameter, where the probability is size/(size + mu).",
+                     "\n\n",
+                     "The key features of the Negative Binomial distribution are as follows:",
+                     "\n\n",
+                     "- Counting Successes: The Negative Binomial distribution is used to count",
+                     "the number of failures that occur before a specified number of successes",
+                     "are achieved. It models situations where the number of trials needed to",
+                     "reach the desired number of successes is uncertain.",
+                     "\n",
+                     "- Probability of Success: The Negative Binomial distribution is characterized",
+                     "by two parameters: the probability of success (usually denoted as 'p') and",
+                     "the number of successes needed (usually denoted as 'r'). The probability",
+                     "of failure is simply 1 minus the probability of success.",
+                     "\n",
+                     "- Overdispersion: Unlike the Poisson distribution, which assumes that the",
+                     "variance is equal to the mean, the Negative Binomial distribution allows",
+                     "for overdispersion, meaning that the variance can be larger than the mean.",
+                     "This makes it a suitable choice for data that exhibit extra variation or",
+                     "clustering beyond what is expected under a Poisson distribution.",
+                     "\n",
+                     "- Applications: The Negative Binomial distribution is commonly used in",
+                     "various fields, such as biology, epidemiology, economics, and social sciences.",
+                     "It is used to model events that involve a certain number of successes",
+                     "with uncertain timing or to analyze data with overdispersion.",
+                     "\n",
+                     "The Negative Binomial distribution provides a flexible and versatile",
+                     "tool for modeling and analyzing count data with varying rates of success.",
+                     "It allows for capturing the uncertainty in the number of trials required",
+                     "to achieve a specific number of successes and accounts for overdispersion",
+                     "in the data."
                    )
     )
     
