@@ -36,6 +36,10 @@ ui <- fluidPage(
       border-radius: 10px;
         border: 2px solid #00A68A;
         box-shadow: 0 0 10px 5px rgba(0, 166, 138, 0.3);",
+      h4("App guidance"),
+      h6("This app allows users to explore features of various probabilistic distributions. 
+         In this panel, users may select a distribution, select parameters to visualise for that distribution, 
+         and select the number of random values to be generated."),
       pickerInput(
         inputId = "distribution",
         label = "Select distribution",
@@ -47,240 +51,263 @@ ui <- fluidPage(
           `live-search` = TRUE
         )
       ),
-      tags$hr(style = "border-color: white;"),
+      tags$hr(style = "border-color: #00A68A;"),
       h4("Range of possible values"),
-      h6("Below you may specify the minimum and maximum values within which you would like to know the probability density mass"),
+      h6("Below you may specify the minimum and maximum values within which you would like to know the probability 
+         density function and select the number of observations to randomly generate from the current distribution"),
       numericInput("xmin", "Minimum value to view:", value = -10),
       numericInput("xmax", "Maximum value to view:", value = 10),
-      tags$hr(style = "border-color: white;"),
+      numericInput("nobs", "Number of values to generate:", value = 100),
+      tags$hr(style = "border-color: #00A68A;"),
       h4("Select the number of parameter combinations you wish to be shown simultaneously"),
       numericInput("numCombinations", "Number of combinations:", value = 1, min = 1, max = 10),
-      tags$hr(style = "border-color: white;"),
+      tags$hr(style = "border-color: #00A68A;"),
       h4("Distribution specific parameters"),
       uiOutput("distributionParams")
     ),
+    
     mainPanel(
       id = "main",
-      h4("Summary of distribution"),
+      tags$style("#myTextOutput { font-size: 20px; color: #00A68A; font-weight: bold; }"),
+      div(id = "myTextOutput", textOutput("distName")),
+      h4("Brief summary"),
       textOutput("distributionText"),
       br(),
-      h4("Examples of data generated from distribution"),
-      textOutput("distributionEG"),
-      br(),
-      plotOutput("densityPlot"),
-      br(),
-      h4("Distributrion details"),
+      h5("Distributrion details"),
       h6("Notation:"),
       uiOutput("distributionNote"),
-      h6("where the probability mass function is given as:"),
-      uiOutput("distributionPMF"),
+      h6("where the probability density function is given as:"),
+      uiOutput("distributionPDF"),
+      tags$hr(style = "border-color: #00A68A;"),
+      br(),
+      plotOutput("densityPlot"),
+      h6("Fig. 1: The probability density function visualised, whereby values which could be generated (x-axis) occur at different densities (y-axis) given the parameter values supplied."),
+      tags$hr(style = "border-color: #00A68A;"),
+      br(),
+      plotOutput("randomPlot"),
+      h6("Fig. 2: Randomly generated values based on the PDF, the number of observations requested, and the specific parameter values supplied."),
+      br(),
+      tags$hr(style = "border-color: #00A68A;"),
+      h4("Summary of the distribution"),
+      textOutput("detailed"),
+      h4("Examples of data generated from this distribution"),
+      textOutput("distributionEG"),
+      tags$hr(style = "border-color: #00A68A;"),
+      br(),
+      br(),
+      br()
     )
   )
 )
 
 # Define server logic
 server <- function(input, output, session) {
+  # Get name of selected distribution
+  output$distName <- renderText({
+    name <- paste("The", input$distribution, "distribution")
+    name
+  })
+  
   # Generate distribution-specific parameter inputs
   output$distributionParams <- renderUI({
     distribution <- input$distribution
     numCombinations <- input$numCombinations
-
+    
     params_ui <- lapply(1:numCombinations, function(i) {
       tagList(
         h4(paste0("Combination ", i)),
         switch(distribution,
-          "Normal" = tagList(
-            numericInput(paste0("mean_", i), withMathJax(helpText("Mean (\\(\\mu\\)):")), value = 0),
-            numericInput(paste0("sd_", i), withMathJax(helpText("Standard Deviation (\\(\\sigma\\)):")), value = 1)
-          ),
-          "Poisson" = tagList(
-            numericInput(paste0("lambda_", i), "Lambda:", value = 3, step = 1),
-            h6("where the probability mass function is given as:")
-          ),
-          "Uniform" = tagList(
-            numericInput(paste0("min_", i), withMathJax(helpText("Minimum (\\(a\\)):")), value = -3),
-            numericInput(paste0("max_", i), withMathJax(helpText("Maximum (\\(b\\)):")), value = 3)
-          ),
-          "Beta" = tagList(
-            numericInput(paste0("alpha_", i), withMathJax(helpText("Shape 1 (\\(\\alpha\\)):")), value = 3),
-            numericInput(paste0("beta_", i), withMathJax(helpText("Shape 2 (\\(\\beta\\)):")), value = 2)
-          ),
-          "T" = tagList(
-            numericInput(paste0("df_", i), withMathJax(helpText("Degrees of freedom (\\(\\nu\\)):")), value = 2)
-          ),
-          "Binomial" = tagList(
-            numericInput(paste0("size_", i), withMathJax(helpText("Number of trials (\\(n\\)):")), value = 10),
-            numericInput(paste0("prob_", i), withMathJax(helpText("Success probability (\\(p\\)):")), value = 0.7, min = 0, max = 1, step = 0.1)
-          ),
-          "Exponential" = tagList(
-            numericInput(paste0("rate_", i), withMathJax(helpText("Rate (\\(\\lambda\\)):")), value = 2)
-          ),
-          "Gamma" = tagList(
-            numericInput(paste0("shape_", i), withMathJax(helpText("Rate (\\(\\alpha\\)):")), value = 2),
-            numericInput(paste0("rate_gamma_", i), withMathJax(helpText("Rate (\\(\\beta\\)):")), value = 1)
-          ),
-          "Log-Normal" = tagList(
-            numericInput(paste0("meanlog_", i), withMathJax(helpText("Log mean (\\(\\mu\\)):")), value = 0),
-            numericInput(paste0("sdlog_", i), withMathJax(helpText("Log standard deviation (\\(\\sigma\\)):")), value = 1)
-          ),
-          "Half-Cauchy" = tagList(
-            numericInput(paste0("scale_", i), withMathJax(helpText("Scale (\\(\\alpha\\)):")), value = 1)
-          ),
-          "Tweedie" = tagList(
-            numericInput(paste0("p_", i), withMathJax(helpText("Power (\\(p\\)):")), value = 2),
-            numericInput(paste0("mu_", i), withMathJax(helpText("Mean (\\(\\mu\\)):")), value = 3),
-            numericInput(paste0("phi_", i), withMathJax(helpText("Variance (\\(\\phi\\)):")), value = 3)
-          ),
-          "Wald" = tagList(
-            numericInput(paste0("mu_", i), withMathJax(helpText("Mean (\\(\\mu\\)):")), value = 3),
-            numericInput(paste0("lambda_", i), withMathJax(helpText("Shape (\\(\\lambda\\)):")), value = 3)
-          ),
-          "ZIP" = tagList(
-            numericInput(paste0("lambda_", i), withMathJax(helpText("Rate (\\(\\lambda\\)):")), value = 1),
-            numericInput(paste0("pi_", i), withMathJax(helpText("Probability (\\(\\pi\\)):")), value = 0.2, min = 0, max = 1, step = 0.1)
-          ),
-          "Bernoulli" = tagList(
-            numericInput(paste0("p_", i), withMathJax(helpText("Probability (\\(p\\)):")), value = 1, min = 0, max = 1, step = 0.1)
-          )
+               "Normal" = tagList(
+                 numericInput(paste0("mean_", i), withMathJax(helpText("Mean (\\(\\mu\\)):")), value = 0),
+                 numericInput(paste0("sd_", i), withMathJax(helpText("Standard Deviation (\\(\\sigma\\)):")), value = 1)
+               ),
+               "Poisson" = tagList(
+                 numericInput(paste0("lambda_", i), "Lambda:", value = 3, step = 1),
+                 h6("where the probability density function is given as:")
+               ),
+               "Uniform" = tagList(
+                 numericInput(paste0("min_", i), withMathJax(helpText("Minimum (\\(a\\)):")), value = -3),
+                 numericInput(paste0("max_", i), withMathJax(helpText("Maximum (\\(b\\)):")), value = 3)
+               ),
+               "Beta" = tagList(
+                 numericInput(paste0("alpha_", i), withMathJax(helpText("Shape 1 (\\(\\alpha\\)):")), value = 3),
+                 numericInput(paste0("beta_", i), withMathJax(helpText("Shape 2 (\\(\\beta\\)):")), value = 2)
+               ),
+               "T" = tagList(
+                 numericInput(paste0("df_", i), withMathJax(helpText("Degrees of freedom (\\(\\nu\\)):")), value = 2)
+               ),
+               "Binomial" = tagList(
+                 numericInput(paste0("size_", i), withMathJax(helpText("Number of trials (\\(n\\)):")), value = 10),
+                 numericInput(paste0("prob_", i), withMathJax(helpText("Success probability (\\(p\\)):")), value = 0.7, min = 0, max = 1, step = 0.1)
+               ),
+               "Exponential" = tagList(
+                 numericInput(paste0("rate_", i), withMathJax(helpText("Rate (\\(\\lambda\\)):")), value = 2)
+               ),
+               "Gamma" = tagList(
+                 numericInput(paste0("shape_", i), withMathJax(helpText("Rate (\\(\\alpha\\)):")), value = 2),
+                 numericInput(paste0("rate_gamma_", i), withMathJax(helpText("Rate (\\(\\beta\\)):")), value = 1)
+               ),
+               "Log-Normal" = tagList(
+                 numericInput(paste0("meanlog_", i), withMathJax(helpText("Log mean (\\(\\mu\\)):")), value = 0),
+                 numericInput(paste0("sdlog_", i), withMathJax(helpText("Log standard deviation (\\(\\sigma\\)):")), value = 1)
+               ),
+               "Half-Cauchy" = tagList(
+                 numericInput(paste0("scale_", i), withMathJax(helpText("Scale (\\(\\alpha\\)):")), value = 1)
+               ),
+               "Tweedie" = tagList(
+                 numericInput(paste0("p_", i), withMathJax(helpText("Power (\\(p\\)):")), value = 2),
+                 numericInput(paste0("mu_", i), withMathJax(helpText("Mean (\\(\\mu\\)):")), value = 3),
+                 numericInput(paste0("phi_", i), withMathJax(helpText("Variance (\\(\\phi\\)):")), value = 3)
+               ),
+               "Wald" = tagList(
+                 numericInput(paste0("mu_", i), withMathJax(helpText("Mean (\\(\\mu\\)):")), value = 3),
+                 numericInput(paste0("lambda_", i), withMathJax(helpText("Shape (\\(\\lambda\\)):")), value = 3)
+               ),
+               "ZIP" = tagList(
+                 numericInput(paste0("lambda_", i), withMathJax(helpText("Rate (\\(\\lambda\\)):")), value = 1),
+                 numericInput(paste0("pi_", i), withMathJax(helpText("Probability (\\(\\pi\\)):")), value = 0.2, min = 0, max = 1, step = 0.1)
+               ),
+               "Bernoulli" = tagList(
+                 numericInput(paste0("p_", i), withMathJax(helpText("Probability (\\(p\\)):")), value = 1, min = 0, max = 1, step = 0.1)
+               )
         )
       )
     })
-
+    
     do.call(tagList, params_ui)
   })
-
-  output$distributionPMF <- renderUI({
+  
+  output$distributionPDF <- renderUI({
     distribution <- input$distribution
-
+    
     note <- switch(distribution,
-      "Normal" = tagList(
-        withMathJax(paste0("$$f(x) = \\frac{1}{\\sigma\\sqrt{2\\pi}}e^{-\\frac{1}{2}(\\frac{x-\\mu}{\\sigma})^2}$$"))
-      ),
-      "Poisson" = tagList(
-        withMathJax(paste0("$$f(x) = \\frac{\\lambda^ke^{-\\lambda}}{k!}$$"))
-      ),
-      "Uniform" = tagList(
-        withMathJax(paste0("$$f(x)=\\frac{1}{b-a}$$"))
-      ),
-      "Beta" = tagList(
-        withMathJax(paste0("$$f(x) = \\frac{\\Gamma(\\alpha + \\beta)}{\\Gamma(\\alpha)\\Gamma(\\beta)}x^{\\alpha-1}(1-x)^{\\beta-1}$$"))
-      ),
-      "T" = tagList(
-        withMathJax(paste0("$$f(x) = \\frac{\\Gamma(\\frac{\\nu + 1}{2})}{\\sqrt{\\nu\\pi}\\Gamma(\\frac{\\nu}{2})}(1+\\frac{x^2}{\\nu})^{-\\frac{\\nu+1}{2}}$$"))
-      ),
-      "Binomial" = tagList(
-        withMathJax(paste0("$$f(x) = \\binom{n}{k}p^k(1-p)^{n-k}$$"))
-      ),
-      "Exponential" = tagList(
-        withMathJax(paste0("$$f(x) = \\lambda e^{-\\lambda x}$$"))
-      ),
-      "Gamma" = tagList(
-        withMathJax(paste0("$$f(x) = \\frac{1}{\\beta^\\alpha \\Gamma(\\alpha)}x^{\\alpha-1}e^{\\frac{-x}{\\beta}}$$"))
-      ),
-      "Log-Normal" = tagList(
-        withMathJax(paste0("$$f(x) = \\frac{1}{\\sqrt{2\\pi\\sigma x}}e^{\\frac{-(log(x)-\\mu)^2}{2\\sigma^2}}$$"))
-      ),
-      "Half-Cauchy" = tagList(
-        withMathJax(paste0("$$f(x) = \\frac{2 \\alpha}{\\pi(x^2+\\alpha^2)}$$"))
-      ),
-      "Tweedie" = tagList(
-        withMathJax(paste0("$$f(x) = h(\\sigma^2, x)exp[\\frac{px - A(p)}{\\sigma^2}]$$")),
-      ),
-      "Wald" = tagList(
-        withMathJax(paste0("$$f(x) = \\sqrt{\\frac{\\lambda}{2\\pi x^2}}exp(\\frac{-\\lambda(x-\\mu)^2}{2\\mu^2x}$$"))
-      ),
-      "ZIP" = tagList(
-        withMathJax(
-          helpText("$$f(x)=\\begin{cases}
+                   "Normal" = tagList(
+                     withMathJax(paste0("$$f(x) = \\frac{1}{\\sigma\\sqrt{2\\pi}}e^{-\\frac{1}{2}(\\frac{x-\\mu}{\\sigma})^2}$$"))
+                   ),
+                   "Poisson" = tagList(
+                     withMathJax(paste0("$$f(x) = \\frac{\\lambda^ke^{-\\lambda}}{k!}$$"))
+                   ),
+                   "Uniform" = tagList(
+                     withMathJax(paste0("$$f(x)=\\frac{1}{b-a}$$"))
+                   ),
+                   "Beta" = tagList(
+                     withMathJax(paste0("$$f(x) = \\frac{\\Gamma(\\alpha + \\beta)}{\\Gamma(\\alpha)\\Gamma(\\beta)}x^{\\alpha-1}(1-x)^{\\beta-1}$$"))
+                   ),
+                   "T" = tagList(
+                     withMathJax(paste0("$$f(x) = \\frac{\\Gamma(\\frac{\\nu + 1}{2})}{\\sqrt{\\nu\\pi}\\Gamma(\\frac{\\nu}{2})}(1+\\frac{x^2}{\\nu})^{-\\frac{\\nu+1}{2}}$$"))
+                   ),
+                   "Binomial" = tagList(
+                     withMathJax(paste0("$$f(x) = \\binom{n}{k}p^k(1-p)^{n-k}$$"))
+                   ),
+                   "Exponential" = tagList(
+                     withMathJax(paste0("$$f(x) = \\lambda e^{-\\lambda x}$$"))
+                   ),
+                   "Gamma" = tagList(
+                     withMathJax(paste0("$$f(x) = \\frac{1}{\\beta^\\alpha \\Gamma(\\alpha)}x^{\\alpha-1}e^{\\frac{-x}{\\beta}}$$"))
+                   ),
+                   "Log-Normal" = tagList(
+                     withMathJax(paste0("$$f(x) = \\frac{1}{\\sqrt{2\\pi\\sigma x}}e^{\\frac{-(log(x)-\\mu)^2}{2\\sigma^2}}$$"))
+                   ),
+                   "Half-Cauchy" = tagList(
+                     withMathJax(paste0("$$f(x) = \\frac{2 \\alpha}{\\pi(x^2+\\alpha^2)}$$"))
+                   ),
+                   "Tweedie" = tagList(
+                     withMathJax(paste0("$$f(x) = h(\\sigma^2, x)exp[\\frac{px - A(p)}{\\sigma^2}]$$")),
+                   ),
+                   "Wald" = tagList(
+                     withMathJax(paste0("$$f(x) = \\sqrt{\\frac{\\lambda}{2\\pi x^2}}exp(\\frac{-\\lambda(x-\\mu)^2}{2\\mu^2x}$$"))
+                   ),
+                   "ZIP" = tagList(
+                     withMathJax(
+                       helpText("$$f(x)=\\begin{cases}
                                \\pi + (1 - \\pi) e^{-\\lambda},  & x = 0 \\\\
                                (1 - \\pi)\\frac{\\lambda^xe^{-\\lambda}}{x!}, & x > 0
                              \\end{cases}\\!$$")
-        )
-      ),
-      "Bernoulli" = tagList(
-        withMathJax(paste0("$$f(x) = pl + (1-p)(1-k)$$"))
-      )
+                     )
+                   ),
+                   "Bernoulli" = tagList(
+                     withMathJax(paste0("$$f(x) = pl + (1-p)(1-k)$$"))
+                   )
     )
-
+    
     do.call(tagList, note)
   })
-
+  
   # Generate and render the density plot
   output$densityPlot <- renderPlot({
     distribution <- input$distribution
     xmin <- input$xmin
     xmax <- input$xmax
-
+    
     plot_data <- lapply(1:input$numCombinations, function(i) {
       switch(distribution,
-        "Normal" = {
-          x <- seq(xmin, xmax, length.out = 100)
-          dnorm(x, mean = input[[paste0("mean_", i)]], sd = input[[paste0("sd_", i)]])
-        },
-        "Poisson" = {
-          x <- seq(xmin, xmax, length.out = 100)
-          dpois(as.integer(x), lambda = input[[paste0("lambda_", i)]])
-        },
-        "Uniform" = {
-          x <- seq(xmin, xmax, length.out = 100)
-          dunif(x, min = input[[paste0("min_", i)]], max = input[[paste0("max_", i)]])
-        },
-        "Beta" = {
-          x <- seq(xmin, xmax, length.out = 100)
-          dbeta(x, shape1 = input[[paste0("alpha_", i)]], shape2 = input[[paste0("beta_", i)]])
-        },
-        "T" = {
-          x <- seq(xmin, xmax, length.out = 100)
-          dt(x, df = input[[paste0("df_", i)]])
-        },
-        "Binomial" = {
-          x <- seq(xmin, xmax, length.out = 100)
-          dbinom(as.integer(x), size = input[[paste0("size_", i)]], prob = input[[paste0("prob_", i)]])
-        },
-        "Exponential" = {
-          x <- seq(xmin, xmax, length.out = 100)
-          dexp(x, rate = input[[paste0("rate_", i)]])
-        },
-        "Gamma" = {
-          x <- seq(xmin, xmax, length.out = 100)
-          dgamma(x, shape = input[[paste0("shape_", i)]], rate = input[[paste0("rate_gamma_", i)]])
-        },
-        "Log-Normal" = {
-          x <- seq(xmin, xmax, length.out = 100)
-          dlnorm(x, meanlog = input[[paste0("meanlog_", i)]], sdlog = input[[paste0("sdlog_", i)]])
-        },
-        "Half-Cauchy" = {
-          x <- seq(xmin, xmax, length.out = 100)
-          dhalfcauchy(x, scale = input[[paste0("scale_", i)]])
-        },
-        "Tweedie" = {
-          x <- seq(xmin, xmax, length.out = 100)
-          dtweedie(x, p = input[[paste0("p_", i)]], mu = input[[paste0("mu_", i)]], phi = input[[paste0("phi_", i)]])
-        },
-        "Wald" = {
-          x <- seq(xmin, xmax, length.out = 100)
-          dwald(x, mu = input[[paste0("mu_", i)]], lambda = input[[paste0("lambda_", i)]])
-        },
-        "ZIP" = {
-          x <- seq(xmin, xmax, length.out = 100)
-          dzip(as.integer(x), lambda = input[[paste0("lambda_", i)]], pi = input[[paste0("pi_", i)]])
-        },
-        "Bernoulli" = {
-          x <- seq(xmin, xmax, length.out = 100)
-          dbern(as.integer(x), p = input[[paste0("p_", i)]])
-        }
+             "Normal" = {
+               x <- seq(xmin, xmax, length.out = 100)
+               dnorm(x, mean = input[[paste0("mean_", i)]], sd = input[[paste0("sd_", i)]])
+             },
+             "Poisson" = {
+               x <- seq(xmin, xmax, length.out = 100)
+               dpois(as.integer(x), lambda = input[[paste0("lambda_", i)]])
+             },
+             "Uniform" = {
+               x <- seq(xmin, xmax, length.out = 100)
+               dunif(x, min = input[[paste0("min_", i)]], max = input[[paste0("max_", i)]])
+             },
+             "Beta" = {
+               x <- seq(xmin, xmax, length.out = 100)
+               dbeta(x, shape1 = input[[paste0("alpha_", i)]], shape2 = input[[paste0("beta_", i)]])
+             },
+             "T" = {
+               x <- seq(xmin, xmax, length.out = 100)
+               dt(x, df = input[[paste0("df_", i)]])
+             },
+             "Binomial" = {
+               x <- seq(xmin, xmax, length.out = 100)
+               dbinom(as.integer(x), size = input[[paste0("size_", i)]], prob = input[[paste0("prob_", i)]])
+             },
+             "Exponential" = {
+               x <- seq(xmin, xmax, length.out = 100)
+               dexp(x, rate = input[[paste0("rate_", i)]])
+             },
+             "Gamma" = {
+               x <- seq(xmin, xmax, length.out = 100)
+               dgamma(x, shape = input[[paste0("shape_", i)]], rate = input[[paste0("rate_gamma_", i)]])
+             },
+             "Log-Normal" = {
+               x <- seq(xmin, xmax, length.out = 100)
+               dlnorm(x, meanlog = input[[paste0("meanlog_", i)]], sdlog = input[[paste0("sdlog_", i)]])
+             },
+             "Half-Cauchy" = {
+               x <- seq(xmin, xmax, length.out = 100)
+               dhalfcauchy(x, scale = input[[paste0("scale_", i)]])
+             },
+             "Tweedie" = {
+               x <- seq(xmin, xmax, length.out = 100)
+               dtweedie(x, p = input[[paste0("p_", i)]], mu = input[[paste0("mu_", i)]], phi = input[[paste0("phi_", i)]])
+             },
+             "Wald" = {
+               x <- seq(xmin, xmax, length.out = 100)
+               dwald(x, mu = input[[paste0("mu_", i)]], lambda = input[[paste0("lambda_", i)]])
+             },
+             "ZIP" = {
+               x <- seq(xmin, xmax, length.out = 100)
+               dzip(as.integer(x), lambda = input[[paste0("lambda_", i)]], pi = input[[paste0("pi_", i)]])
+             },
+             "Bernoulli" = {
+               x <- seq(xmin, xmax, length.out = 100)
+               dbern(as.integer(x), p = input[[paste0("p_", i)]])
+             }
       )
     })
-
+    
     data <- data.frame(x = seq(xmin, xmax, length.out = 100), density = unlist(plot_data))
     data$combination <- rep(1:input$numCombinations, each = 100)
-
+    
     ggplot(data, aes(x = x, y = density, group = combination, color = as.factor(combination))) +
       geom_line(size = 1) +
       theme_minimal() +
       scale_color_brewer(palette = "Set2") +
-      # scale_y_continuous(labels = scales::percent) +
-      ggtitle(paste(input$distribution, "Distribution")) +
+      ggtitle(paste(input$distribution, "Distribution: Probability Density Function")) +
       xlab("Value generated from current distribution") +
       ylab("Density of value in hypothetical data") +
       guides(color = guide_legend(title = "Combination")) +
@@ -297,135 +324,597 @@ server <- function(input, output, session) {
         panel.grid.minor = element_line(color = "#444654")
       )
   })
-
+  
   # Generate and render distribution-specific text
   output$distributionText <- renderText({
     distribution <- input$distribution
-
+    
     text <- switch(distribution,
-      "Normal" = "The Normal (or Gaussian) distribution is a continuous probability distribution for real-valued random variables.",
-      "Poisson" = "The Poisson distribution is a discrete probability distribution for count data.",
-      "Uniform" = "The Uniform distribution is a bounded continuous probability distribution.",
-      "Beta" = "The Beta distribution is a continuous probability distribution defined on the interval [0,1].",
-      "T" = "The T distribution is a continuous probability distribution similar to the Normal distribution but with greater variation at the extremes.",
-      "Binomial" = "The Binomial distribution is a discrete probability distribution for binary outcomes with a fixed number of trials.",
-      "Exponential" = "The Exponential distribution is a continuous probability distribution for the time between events in a Poisson process.",
-      "Gamma" = "The Gamma distribution is a continuous probability distribution often used for modeling waiting times or duration until an event.",
-      "Log-Normal" = "The Log-Normal distribution is a continuous probability distribution for positive variables whose logarithm follows a normal distribution.",
-      "Half-Cauchy" = "The Half-Cauchy distribution is a continuous probability distribution with heavy tails.",
-      "Tweedie" = "The Tweedie distribution is a continuous probability distribution often used for modeling data with excess zeros and overdispersion.",
-      "Wald" = "The Wald distribution, also known as the Inverse Gaussian distribution, is a continuous probability distribution used for modeling positive variables with skewed distributions.",
-      "ZIP" = "The Zero-Inflated Poisson (ZIP) distribution is a discrete probability distribution that combines a Poisson distribution with excess zeros. It is often used to model count data with an excess number of zero values.",
-      "Bernoulli" = "The Bernoulli distribution is a discrete probability distribution that represents a special case of a Binomial whereby there is a single trial (rather than > 1)."
+                   "Normal" = "The Normal (or Gaussian) distribution is a continuous probability distribution for real-valued random variables.",
+                   "Poisson" = "The Poisson distribution is a discrete probability distribution for positive data.",
+                   "Uniform" = "The Uniform distribution is a bounded continuous probability distribution.",
+                   "Beta" = "The Beta distribution is a continuous probability distribution defined on the interval [0,1].",
+                   "T" = "The T distribution is a continuous probability distribution similar to the Normal distribution but with greater variation at the extremes.",
+                   "Binomial" = "The Binomial distribution is a discrete probability distribution for binary outcomes with a fixed number of trials.",
+                   "Exponential" = "The Exponential distribution is a continuous probability distribution for the time between events in a Poisson process.",
+                   "Gamma" = "The Gamma distribution is a continuous probability distribution often used for modeling waiting times or duration until an event.",
+                   "Log-Normal" = "The Log-Normal distribution is a continuous probability distribution for positive variables whose logarithm follows a normal distribution.",
+                   "Half-Cauchy" = "The Half-Cauchy distribution is a continuous probability distribution with heavy tails.",
+                   "Tweedie" = "The Tweedie distribution is a continuous probability distribution often used for modeling data with excess zeros and overdispersion.",
+                   "Wald" = "The Wald distribution, also known as the Inverse Gaussian distribution, is a continuous probability distribution used for modeling positive variables with skewed distributions.",
+                   "ZIP" = "The Zero-Inflated Poisson (ZIP) distribution is a discrete probability distribution that combines a Poisson distribution with excess zeros. It is often used to model count data with an excess number of zero values.",
+                   "Bernoulli" = "The Bernoulli distribution is a discrete probability distribution that represents a special case of a Binomial whereby there is a single trial (rather than > 1)."
     )
-
+    
     text
   })
-
+  
   output$distributionEG <- renderText({
     distribution <- input$distribution
-
+    
     text <- switch(distribution,
-      "Normal" = "Weight, change in weight over time, wing length.",
-      "Poisson" = "Number of offspring, number of animals, number of plant seeds.",
-      "Uniform" = "Random number generation, lottery tickets, selection between alternatives.",
-      "Beta" = "Proportions, probabilities, mixture models.",
-      "T" = "Student's t-test, regression, hypothesis testing for small samples.",
-      "Binomial" = "Number of success in a fixed number of trials, coin tosses.",
-      "Exponential" = "Time between events, waiting times, survival analysis.",
-      "Gamma" = "Insurance claims, rainfall, duration until failure.",
-      "Log-Normal" = "Income, stock prices, financial data.",
-      "Half-Cauchy" = "Scale parameters, Bayesian inference, extreme value analysis.",
-      "Tweedie" = "Insurance claims, financial data, ecological data.",
-      "Wald" = "Estimating the precision of an estimate, modeling travel times.",
-      "ZIP" = "Disease counts, ecological data, count data with excess zeros.",
-      "Bernoulli" = "Binary outcomes, success/failure, coin tosses."
+                   "Normal" = "Weight, change in weight over time, wing length.",
+                   "Poisson" = "Number of offspring, number of animals, number of plant seeds.",
+                   "Uniform" = "Random number generation, lottery tickets, selection between alternatives.",
+                   "Beta" = "Proportions, probabilities, mixture models.",
+                   "T" = "Student's t-test, regression, hypothesis testing for small samples.",
+                   "Binomial" = "Number of success in a fixed number of trials, coin tosses.",
+                   "Exponential" = "Time between events, waiting times, survival analysis.",
+                   "Gamma" = "Insurance claims, rainfall, duration until failure.",
+                   "Log-Normal" = "Income, stock prices, financial data.",
+                   "Half-Cauchy" = "Scale parameters, Bayesian inference, extreme value analysis.",
+                   "Tweedie" = "Insurance claims, financial data, ecological data.",
+                   "Wald" = "Estimating the precision of an estimate, modeling travel times.",
+                   "ZIP" = "Disease counts, ecological data, count data with excess zeros.",
+                   "Bernoulli" = "Binary outcomes, success/failure, coin tosses."
     )
-
+    
     text
   })
-
+  
   # Generate and render distribution-specific text
   output$distributionNote <- renderUI({
     distribution <- input$distribution
-
+    
     note <- switch(distribution,
-      "Normal" = tagList(
-        withMathJax(paste0("$$\\mathcal{N}(\\mu, \\sigma^2)$$"))
-      ),
-      "Poisson" = tagList(
-        withMathJax(paste0("$$Pois(\\lambda)$$"))
-      ),
-      "Uniform" = tagList(
-        withMathJax(paste0("$$\\mathcal{U}(a, b)$$"))
-      ),
-      "Beta" = tagList(
-        withMathJax(paste0("$$Beta(\\alpha, \\beta)$$"))
-      ),
-      "T" = tagList(
-        withMathJax(paste0("$$T(\\nu)$$"))
-      ),
-      "Binomial" = tagList(
-        withMathJax(paste0("$$Binom(n,p)$$"))
-      ),
-      "Exponential" = tagList(
-        withMathJax(paste0("$$Exp(\\lambda)$$"))
-      ),
-      "Gamma" = tagList(
-        withMathJax(paste0("$$Gamma(\\alpha, \\beta)$$"))
-      ),
-      "Log-Normal" = tagList(
-        withMathJax(paste0("$$lognormal(\\mu, \\sigma^2)$$"))
-      ),
-      "Half-Cauchy" = tagList(
-        withMathJax(paste0("$$\\mathcal{HC}(\\alpha)$$"))
-      ),
-      "Tweedie" = tagList(
-        withMathJax(paste0("$$TW_p(\\mu, \\lambda)$$")),
-      ),
-      "Wald" = tagList(
-        withMathJax(paste0("$$\\mathcal{IG}(\\mu, \\lambda)$$")),
-        h6("Note that the Wald distribution is often referred to as the Inverse Gaussian distribution (hence IG in the notation).")
-      ),
-      "ZIP" = tagList(
-        withMathJax(paste0("$$ZIP(\\lambda, p)$$"))
-      ),
-      "Bernoulli" = tagList(
-        withMathJax(paste0("$$Bern(p)$$"))
-      )
+                   "Normal" = tagList(
+                     withMathJax(paste0("$$\\mathcal{N}(\\mu, \\sigma^2)$$"))
+                   ),
+                   "Poisson" = tagList(
+                     withMathJax(paste0("$$Pois(\\lambda)$$"))
+                   ),
+                   "Uniform" = tagList(
+                     withMathJax(paste0("$$\\mathcal{U}(a, b)$$"))
+                   ),
+                   "Beta" = tagList(
+                     withMathJax(paste0("$$Beta(\\alpha, \\beta)$$"))
+                   ),
+                   "T" = tagList(
+                     withMathJax(paste0("$$T(\\nu)$$"))
+                   ),
+                   "Binomial" = tagList(
+                     withMathJax(paste0("$$Binom(n,p)$$"))
+                   ),
+                   "Exponential" = tagList(
+                     withMathJax(paste0("$$Exp(\\lambda)$$"))
+                   ),
+                   "Gamma" = tagList(
+                     withMathJax(paste0("$$Gamma(\\alpha, \\beta)$$"))
+                   ),
+                   "Log-Normal" = tagList(
+                     withMathJax(paste0("$$lognormal(\\mu, \\sigma^2)$$"))
+                   ),
+                   "Half-Cauchy" = tagList(
+                     withMathJax(paste0("$$\\mathcal{HC}(\\alpha)$$"))
+                   ),
+                   "Tweedie" = tagList(
+                     withMathJax(paste0("$$TW_p(\\mu, \\lambda)$$")),
+                   ),
+                   "Wald" = tagList(
+                     withMathJax(paste0("$$\\mathcal{IG}(\\mu, \\lambda)$$")),
+                     h6("Note that the Wald distribution is often referred to as the Inverse Gaussian distribution (hence IG in the notation).")
+                   ),
+                   "ZIP" = tagList(
+                     withMathJax(paste0("$$ZIP(\\lambda, p)$$"))
+                   ),
+                   "Bernoulli" = tagList(
+                     withMathJax(paste0("$$Bern(p)$$"))
+                   )
     )
-
+    
     do.call(tagList, note)
   })
-
-
-
+  
+  
+  
   observeEvent(input$distribution, {
     distribution <- input$distribution
-
+    
     # Set default values based on the distribution
     default_values <- switch(distribution,
-      "Normal" = list(xmin = -10, xmax = 10),
-      "Uniform" = list(xmin = -5, xmax = 5),
-      "Poisson" = list(xmin = 0, xmax = 10),
-      "Beta" = list(xmin = 0, xmax = 1),
-      "T" = list(xmin = 0, xmax = 10),
-      "Binomial" = list(xmin = 0, xmax = 10),
-      "Exponential" = list(xmin = 0, xmax = 10),
-      "Gamma" = list(xmin = 0, xmax = 10),
-      "Log-Normal" = list(xmin = 0, xmax = 10),
-      "Half-Cauchy" = list(xmin = -10, xmax = 10),
-      "Tweedie" = list(xmin = 0.1, xmax = 10),
-      "Wald" = list(xmin = 0, xmax = 10),
-      "ZIP" = list(xmin = 0, xmax = 10),
-      "Bernoulli" = list(xmin = 0, xmax = 1),
-      NULL # Default case (if no distribution is selected)
+                             "Normal" = list(xmin = -10, xmax = 10),
+                             "Uniform" = list(xmin = -5, xmax = 5),
+                             "Poisson" = list(xmin = 0, xmax = 10),
+                             "Beta" = list(xmin = 0, xmax = 1),
+                             "T" = list(xmin = 0, xmax = 10),
+                             "Binomial" = list(xmin = 0, xmax = 10),
+                             "Exponential" = list(xmin = 0, xmax = 10),
+                             "Gamma" = list(xmin = 0, xmax = 10),
+                             "Log-Normal" = list(xmin = 0, xmax = 10),
+                             "Half-Cauchy" = list(xmin = -10, xmax = 10),
+                             "Tweedie" = list(xmin = 0.1, xmax = 10),
+                             "Wald" = list(xmin = 0, xmax = 10),
+                             "ZIP" = list(xmin = 0, xmax = 10),
+                             "Bernoulli" = list(xmin = 0, xmax = 1),
+                             NULL # Default case (if no distribution is selected)
     )
-
+    
     # Update the default values of numericInput
     updateNumericInput(session, "xmin", value = default_values$xmin)
     updateNumericInput(session, "xmax", value = default_values$xmax)
   })
+  
+  output$randomPlot <- renderPlot({
+    xmin <- input$xmin
+    xmax <- input$xmax
+    distribution <- input$distribution
+    nobs <- input$nobs
+    
+    plot_data <- lapply(1:input$numCombinations, function(i) {
+      switch(distribution,
+             "Normal" = {
+               rnorm(nobs, mean = input[[paste0("mean_", i)]], sd = input[[paste0("sd_", i)]])
+             },
+             "Poisson" = {
+               rpois(nobs, lambda = input[[paste0("lambda_", i)]])
+             },
+             "Uniform" = {
+               runif(nobs, min = input[[paste0("min_", i)]], max = input[[paste0("max_", i)]])
+             },
+             "Beta" = {
+               rbeta(nobs, shape1 = input[[paste0("alpha_", i)]], shape2 = input[[paste0("beta_", i)]])
+             },
+             "T" = {
+               rt(nobs, df = input[[paste0("df_", i)]])
+             },
+             "Binomial" = {
+               rbinom(nobs, size = input[[paste0("size_", i)]], prob = input[[paste0("prob_", i)]])
+             },
+             "Exponential" = {
+               rexp(nobs, rate = input[[paste0("rate_", i)]])
+             },
+             "Gamma" = {
+               rgamma(nobs, shape = input[[paste0("shape_", i)]], rate = input[[paste0("rate_gamma_", i)]])
+             },
+             "Log-Normal" = {
+               rlnorm(nobs, meanlog = input[[paste0("meanlog_", i)]], sdlog = input[[paste0("sdlog_", i)]])
+             },
+             "Half-Cauchy" = {
+               rhalfcauchy(nobs, scale = input[[paste0("scale_", i)]])
+             },
+             "Tweedie" = {
+               rtweedie(nobs, p = input[[paste0("p_", i)]], mu = input[[paste0("mu_", i)]], phi = input[[paste0("phi_", i)]])
+             },
+             "Wald" = {
+               rwald(nobs, mu = input[[paste0("mu_", i)]], lambda = input[[paste0("lambda_", i)]])
+             },
+             "ZIP" = {
+               rzip(nobs, lambda = input[[paste0("lambda_", i)]], pi = input[[paste0("pi_", i)]])
+             },
+             "Bernoulli" = {
+               rbern(nobs, p = input[[paste0("p_", i)]])
+             }
+      )
+    })
+    
+    # Check for errors in generating random data
+    if (any(sapply(plot_data, is.null))) {
+      stop("Error: Failed to generate random values. Please check the input values.")
+    }
+    
+    data <- data.frame(values = unlist(plot_data))
+    data$combination <- rep(1:input$numCombinations, each = nobs)
+    
+    ggplot(data, aes(x = values, group = combination, color = as.factor(combination), fill = as.factor(combination))) +
+      geom_histogram(size = 1, position = position_dodge(), alpha = 0.3) +
+      theme_minimal() +
+      scale_color_brewer(palette = "Set2") +
+      scale_fill_brewer(palette = "Set2") +
+      scale_x_continuous(limits = c(xmin, xmax)) +
+      ggtitle(paste(input$distribution, "Distribution: Randomly generated values")) +
+      xlab("Randomly generated values from current distribution") +
+      ylab("Frequency") +
+      guides(color = guide_legend(title = "Combination"), fill = guide_legend(title = "Combination")) +
+      theme(
+        panel.background = element_blank(),
+        plot.background = element_rect(fill = "#202123"),
+        plot.title = element_text(color = "white", size = 16),
+        axis.text = element_text(color = "white", size = 12),
+        axis.title = element_text(color = "white", size = 14),
+        legend.title = element_text(color = "white", size = 12),
+        legend.text = element_text(color = "white", size = 10),
+        panel.border = element_blank(),
+        panel.grid.major = element_line(color = "#444654"),
+        panel.grid.minor = element_line(color = "#444654")
+      )
+  })
+  
+  output$detailed <- renderText({
+    distribution <- input$distribution
+    
+    text <- switch(distribution,
+                   "Normal" = paste(
+                     "The Normal distribution, also known as the Gaussian distribution, is one",
+                     "of the most important and widely used probability distributions in statistics.",
+                     "It is often referred to as the 'bell curve' due to its characteristic symmetric",
+                     "shape resembling a bell. In simple terms, the Normal distribution describes a",
+                     "pattern that many natural phenomena tend to follow. It is commonly observed",
+                     "in real-world measurements such as heights, weights, test scores, and other",
+                     "quantities. The key features of the Normal distribution are as follows:",
+                     "\n\n",
+                     "Symmetry: The distribution is symmetric around its center, which is called the mean.",
+                     "This means that the values on the left and right sides of the mean are balanced.",
+                     "\n",
+                     "Bell-shaped: The distribution has a characteristic bell shape, where the highest",
+                     "point (peak) is at the mean. The values gradually decrease as you move away from the mean.",
+                     "\n",
+                     "Mean and Standard Deviation: The mean of the Normal distribution represents the average",
+                     "or typical value, while the standard deviation measures the spread or variability of the data.",
+                     "The larger the standard deviation, the more spread out the data points are."
+                   ),
+                   "Poisson" = paste(
+                     "The Poisson distribution is a probability distribution that is commonly used",
+                     "to model the occurrence of rare events. It is often used when we want to",
+                     "estimate the number of events that are likely to happen within a specific time",
+                     "period or in a particular area. The key features of the Poisson distribution",
+                     "are as follows:",
+                     "\n\n",
+                     "Counting Events: The Poisson distribution is used to describe the number of",
+                     "events that occur in a fixed interval of time or space. These events are assumed",
+                     "to be independent and occur at a constant average rate.",
+                     "\n",
+                     "Rare Events: The Poisson distribution is suitable for modeling rare events",
+                     "where the average rate of occurrence is small, but the total number of possible",
+                     "events is large. Examples of such events include the number of phone calls",
+                     "received by a call center in a minute or the number of accidents at an intersection",
+                     "in a day.",
+                     "\n",
+                     "Mean and Variance: The mean of the Poisson distribution is equal to the average",
+                     "rate of events, while the variance is also equal to the average rate. This means",
+                     "that the spread of the distribution increases with higher event rates."
+                   ),
+                   "Uniform" = paste(
+                     "The Uniform distribution is a simple and straightforward probability distribution",
+                     "that models situations where all outcomes are equally likely. It creates a",
+                     "rectangular shape with constant probability density throughout its range.",
+                     "In this distribution, every possible outcome within a specific range has an",
+                     "equal chance of occurring, similar to rolling a fair, six-sided die.",
+                     "The Uniform distribution is useful when there is no inherent bias or preference",
+                     "for certain outcomes, and it is often used as a baseline for comparisons",
+                     "with other distributions. Overall, it represents a situation where all outcomes",
+                     "have an equal probability within a fixed range."
+                   ),
+                   "Beta" = paste(
+                     "The Beta distribution is a probability distribution that is commonly used",
+                     "to model random variables that have values between 0 and 1. It is often",
+                     "used to represent probabilities or proportions. The key features of the",
+                     "Beta distribution are as follows:",
+                     "\n\n",
+                     "Values Between 0 and 1: The Beta distribution is defined on the interval",
+                     "(0, 1), which makes it suitable for modeling proportions or probabilities.",
+                     "The distribution is characterized by two shape parameters, often denoted",
+                     "as alpha and beta.",
+                     "\n",
+                     "Flexible Shape: The Beta distribution can take on a variety of shapes,",
+                     "ranging from U-shaped to J-shaped, depending on the values of its shape",
+                     "parameters. This flexibility allows it to model a wide range of data patterns.",
+                     "\n",
+                     "Uniform and Symmetric: When the shape parameters of the Beta distribution",
+                     "are equal and greater than 1, the distribution becomes symmetric and resembles",
+                     "a uniform distribution. This means that all values between 0 and 1 are equally",
+                     "likely to occur.",
+                     "\n",
+                     "Applications: The Beta distribution is widely used in areas such as Bayesian",
+                     "statistics, quality control, modeling proportions in survey sampling, and",
+                     "A/B testing.",
+                     "\n",
+                     "It's important to note that the Beta distribution can represent a wide range",
+                     "of shapes and behaviors, making it a versatile tool in statistical modeling."
+                   ),
+                   "T" = paste(
+                     "The Student's T distribution, also known as the T distribution, is a probability",
+                     "distribution that is commonly used for statistical inference when the sample",
+                     "size is small or when the population standard deviation is unknown. It is",
+                     "named after William Sealy Gosset, who developed the distribution under the",
+                     "pseudonym 'Student'. The key features of the Student's T distribution are as follows:",
+                     "\n\n",
+                     "Similar to the Normal Distribution: The Student's T distribution resembles",
+                     "the Normal distribution in shape, but it has heavier tails. This means that",
+                     "it allows for more extreme values compared to the Normal distribution.",
+                     "\n",
+                     "Degree of Freedom: The shape of the T distribution is determined by its",
+                     "'degrees of freedom' parameter, denoted as 'df'. The degrees of freedom",
+                     "reflect the size of the sample used to estimate the population parameters.",
+                     "As the degrees of freedom increase, the T distribution approaches the Normal",
+                     "distribution.",
+                     "\n",
+                     "Widely Used in Hypothesis Testing: The T distribution plays a crucial role",
+                     "in hypothesis testing, particularly when the sample size is small. It is used",
+                     "to calculate confidence intervals and perform t-tests to compare means between",
+                     "groups or to test if a sample mean differs from a known value.",
+                     "\n",
+                     "Applications: The T distribution is widely used in various fields, including",
+                     "medical research, social sciences, finance, and quality control.",
+                     "\n",
+                     "The Student's T distribution is an important tool in statistical analysis,",
+                     "especially when working with small sample sizes or uncertain population",
+                     "parameters."
+                   ),
+                   "Binomial" = paste(
+                     "The Binomial distribution is a probability distribution that is commonly used",
+                     "to model the number of 'successes' in a fixed number of 'trials'. It is",
+                     "applicable when there are only two possible outcomes for each trial, typically",
+                     "referred to as 'success' and 'failure'. The key features of the Binomial",
+                     "distribution are as follows:",
+                     "\n\n",
+                     "Fixed Number of Trials: The Binomial distribution models a fixed number of",
+                     "independent and identical trials, where each trial can result in one of two",
+                     "outcomes.",
+                     "\n",
+                     "Probability of Success: The distribution is characterized by the probability",
+                     "of success, denoted as 'p'. This represents the likelihood of observing a success",
+                     "on each individual trial.",
+                     "\n",
+                     "Number of Successes: The Binomial distribution describes the probability of",
+                     "obtaining a specific number of successes, denoted as 'k', out of the fixed number",
+                     "of trials.",
+                     "\n",
+                     "Independent Trials: The trials in a Binomial distribution are assumed to be",
+                     "independent, meaning that the outcome of one trial does not influence the",
+                     "outcome of another.",
+                     "\n",
+                     "Applications: The Binomial distribution is commonly used to model various",
+                     "real-world scenarios, such as the number of successful sales out of a fixed",
+                     "number of attempts, the number of defective items in a production batch, or the",
+                     "number of correct answers on a multiple-choice test.",
+                     "\n",
+                     "The Binomial distribution provides a useful framework for understanding and",
+                     "predicting the occurrence of binary outcomes in situations involving a fixed",
+                     "number of trials."
+                   ),
+                   "Exponential" = paste(
+                     "The Exponential distribution is a probability distribution that is often used",
+                     "to model the time between events that occur randomly and independently at a",
+                     "constant average rate. It is particularly useful for understanding the",
+                     "occurrence of events in continuous time. The key features of the Exponential",
+                     "distribution are as follows:",
+                     "\n\n",
+                     "Constant Rate: The distribution is characterized by a constant rate parameter,",
+                     "often denoted as 'λ' (lambda). This parameter represents the average number of",
+                     "events that occur per unit of time. The higher the rate, the more frequent the",
+                     "events.",
+                     "\n",
+                     "Memoryless Property: The Exponential distribution has a unique property called",
+                     "the 'memoryless property'. This means that the probability of an event occurring",
+                     "in the next time interval does not depend on how much time has already passed.",
+                     "In other words, the distribution does not 'remember' when the last event occurred.",
+                     "\n",
+                     "Applications: The Exponential distribution is commonly used to model the time",
+                     "between occurrences of events, such as the time between phone calls at a call",
+                     "center, the time between arrivals of customers at a service counter, or the time",
+                     "between successive radioactive decays.",
+                     "\n",
+                     "The Exponential distribution provides a simple and intuitive way to model the",
+                     "waiting times between events that happen randomly and independently over time."
+                   ),
+                   "Gamma" = paste(
+                     "The Gamma distribution is a probability distribution that is often used to",
+                     "model the time it takes for a certain number of events to occur. It is",
+                     "commonly used to analyze the waiting times for a series of events to happen.",
+                     "The key features of the Gamma distribution are as follows:",
+                     "\n\n",
+                     "Shape and Scale: The distribution is characterized by two parameters: shape",
+                     "and scale. The shape parameter determines the shape of the distribution curve,",
+                     "while the scale parameter determines the spread or variability of the data.",
+                     "These parameters allow the Gamma distribution to be flexible in representing",
+                     "various patterns of event occurrences.",
+                     "\n",
+                     "Applications: The Gamma distribution is widely applied in various fields,",
+                     "such as reliability analysis, queueing theory, insurance modeling, and",
+                     "actuarial science. It is often used to model the time until a series of",
+                     "independent events occur, such as the lifetime of a machine, the duration",
+                     "between phone calls, or the inter-arrival times of customers at a store.",
+                     "\n",
+                     "Relationship to Other Distributions: The Exponential distribution is a",
+                     "special case of the Gamma distribution when the shape parameter is 1. This",
+                     "means that the Exponential distribution represents the time until the first",
+                     "event occurs, while the Gamma distribution can represent the time until the",
+                     "kth event occurs.",
+                     "\n",
+                     "The Gamma distribution provides a flexible framework for modeling the time",
+                     "until a certain number of events happen, allowing for a wide range of",
+                     "applications in various fields."
+                   ),
+                   "Log-Normal" = paste(
+                     "The Log-Normal distribution is a probability distribution that is often used",
+                     "to model variables that are positive and skewed. It is commonly used to",
+                     "analyze data that exhibits exponential growth or multiplicative effects.",
+                     "The key features of the Log-Normal distribution are as follows:",
+                     "\n\n",
+                     "Shape and Scale: The distribution is characterized by two parameters: the",
+                     "mean and the standard deviation of the natural logarithm of the data. The",
+                     "mean determines the location of the distribution, while the standard",
+                     "deviation determines the spread or variability of the data. These parameters",
+                     "allow the Log-Normal distribution to capture a wide range of positive skewed",
+                     "patterns.",
+                     "\n",
+                     "Applications: The Log-Normal distribution is commonly used to model",
+                     "phenomena in various fields, such as finance, economics, biology, and",
+                     "environmental sciences. It is often used to describe variables that are",
+                     "product or ratio of several factors, such as stock prices, income",
+                     "distributions, population sizes, and response times.",
+                     "\n",
+                     "Relationship to Other Distributions: The Log-Normal distribution is related",
+                     "to the Normal distribution. If a variable follows a Log-Normal distribution,",
+                     "its natural logarithm will follow a Normal distribution. This relationship",
+                     "makes the Log-Normal distribution useful for transforming skewed data into a",
+                     "more symmetric form.",
+                     "\n",
+                     "The Log-Normal distribution provides a flexible framework for modeling",
+                     "positively skewed data that exhibit exponential growth or multiplicative",
+                     "effects. It is widely used in various fields to analyze and describe",
+                     "phenomena that follow such patterns."
+                   ),
+                   "Half-Cauchy" = paste(
+                     "The Half-Cauchy distribution is a probability distribution that is often used",
+                     "to model positive variables with heavy tails. It is derived from the",
+                     "Cauchy distribution, which is known for its wide tails and lack of moments.",
+                     "The key features of the Half-Cauchy distribution are as follows:",
+                     "\n\n",
+                     "Shape and Scale: The distribution is characterized by a single parameter,",
+                     "the scale parameter, which controls the spread or variability of the data.",
+                     "The Half-Cauchy distribution has a shape similar to the Cauchy distribution,",
+                     "but it is restricted to positive values.",
+                     "\n",
+                     "Heavy Tails: The Half-Cauchy distribution has heavy tails, which means that",
+                     "it allows for the occurrence of extreme values that are relatively far from",
+                     "the center of the distribution. This property makes it useful for modeling",
+                     "variables with occasional extreme observations.",
+                     "\n",
+                     "Applications: The Half-Cauchy distribution is commonly used as a prior",
+                     "distribution in Bayesian statistics, particularly when modeling scale",
+                     "parameters. It can also be employed in various fields such as finance,",
+                     "psychology, and environmental sciences to describe variables that exhibit",
+                     "heavy-tailed behavior.",
+                     "\n",
+                     "The Half-Cauchy distribution provides a flexible framework for modeling",
+                     "positively skewed variables with heavy tails. It is commonly used in",
+                     "statistical analyses and Bayesian modeling to capture extreme observations",
+                     "and accommodate uncertainty in the scale parameter."
+                   ),
+                   "Tweedie" = paste(
+                     "The Tweedie distribution is a probability distribution that is used to model",
+                     "non-negative continuous random variables with varying levels of skewness",
+                     "and dispersion. It is named after the British statistician Maurice Tweedie.",
+                     "The key features of the Tweedie distribution are as follows:",
+                     "\n\n",
+                     "Skewness and Dispersion: The Tweedie distribution allows for modeling",
+                     "variables that exhibit both skewness (asymmetric shape) and dispersion",
+                     "(variation in the spread of values). It provides a flexible framework to",
+                     "capture different levels of skewness and dispersion in the data.",
+                     "\n",
+                     "Compound Poisson-Gamma Structure: The Tweedie distribution is a",
+                     "compound distribution that combines the properties of the Poisson and Gamma",
+                     "distributions. The Poisson component determines the frequency of events,",
+                     "while the Gamma component models the severity or size of each event.",
+                     "\n",
+                     "Applications: The Tweedie distribution finds applications in various fields",
+                     "such as insurance, actuarial science, ecology, and finance. It is particularly",
+                     "useful for modeling data with excess zeros and overdispersion, where the",
+                     "variation in the data exceeds what would be expected from a Poisson or Gaussian",
+                     "distribution.",
+                     "\n",
+                     "The Tweedie distribution provides a versatile tool for modeling non-negative",
+                     "data that exhibit both skewness and dispersion. Its flexibility and ability",
+                     "to handle excess zeros make it valuable in statistical analysis and predictive",
+                     "modeling."
+                   ),
+                   "Wald" = paste(
+                     "The Wald distribution, also known as the Inverse Gaussian distribution, is a",
+                     "probability distribution that is often used to model positive continuous",
+                     "random variables. It is named after the British statistician Abraham Wald.",
+                     "The key features of the Wald distribution are as follows:",
+                     "\n\n",
+                     "Shape and Skewness: The Wald distribution is characterized by a shape that",
+                     "resembles an inverted bell curve. It is a positively skewed distribution,",
+                     "meaning that it has a long tail on the right-hand side.",
+                     "\n",
+                     "Modeling Rates and Time: The Wald distribution is commonly used for modeling",
+                     "rates or time until an event occurs. It is often employed in survival analysis",
+                     "to model the time to failure or in econometrics to model the duration of",
+                     "certain events.",
+                     "\n",
+                     "Relationship to Normal Distribution: The Wald distribution is related to the",
+                     "Normal distribution through its limiting behavior. In certain cases, when the",
+                     "sample size is large, the Wald distribution can approximate a Normal distribution.",
+                     "\n",
+                     "Applications: The Wald distribution finds applications in various fields",
+                     "including finance, biology, engineering, and physics. It is particularly useful",
+                     "in situations where the data exhibit skewness and the distribution of the data",
+                     "is better described by a long-tailed distribution than a Normal distribution.",
+                     "\n",
+                     "The Wald distribution provides a flexible and skewed probability distribution",
+                     "for modeling positive continuous variables. Its shape and relationship to",
+                     "the Normal distribution make it suitable for various statistical analyses and",
+                     "modeling tasks."
+                   ),
+                   "ZIP" = paste(
+                     "The Zero-Inflated Poisson (ZIP) distribution is a probability distribution",
+                     "that is used to model count data with excessive zeros. It is commonly",
+                     "encountered when analyzing data that exhibit both an excess of zeros and",
+                     "a typical Poisson distribution for the non-zero counts.",
+                     "\n\n",
+                     "The key features of the Zero-Inflated Poisson distribution are as follows:",
+                     "\n\n",
+                     "Excess Zero Probability: The ZIP distribution accounts for the excess",
+                     "zeros by incorporating an additional component that models the probability",
+                     "of observing zero counts. This component is separate from the Poisson",
+                     "distribution component that models the non-zero counts.",
+                     "\n",
+                     "Two Components: The ZIP distribution consists of two components: a",
+                     "probability mass at zero (representing excess zeros) and a Poisson",
+                     "distribution (representing non-zero counts). The probability mass at zero",
+                     "component allows for a higher likelihood of zero counts than what would be",
+                     "expected from a standard Poisson distribution.",
+                     "\n",
+                     "Applications: The ZIP distribution is commonly used in various fields",
+                     "such as epidemiology, ecology, finance, and insurance. It is particularly",
+                     "suitable for modeling count data that exhibit excessive zeros, such as",
+                     "insurance claims, species abundance, and disease occurrence data.",
+                     "\n",
+                     "The Zero-Inflated Poisson distribution provides a flexible and versatile",
+                     "model for count data that contains an excess of zeros. By incorporating both",
+                     "the probability of zero counts and the Poisson distribution for non-zero",
+                     "counts, it allows for a more accurate representation of the underlying",
+                     "data generating process."
+                   ),
+                   "Bernoulli" = paste(
+                     "The Bernoulli distribution is a probability distribution that models",
+                     "an experiment with two possible outcomes: success and failure.",
+                     "It is named after Jacob Bernoulli, a Swiss mathematician who introduced",
+                     "the concept of the Bernoulli trials.",
+                     "\n\n",
+                     "The key features of the Bernoulli distribution are as follows:",
+                     "\n\n",
+                     "Binary Outcome: The Bernoulli distribution represents a random variable",
+                     "that can take on one of two values, typically labeled as 1 (success) and 0",
+                     "(failure). It is often used to model events that have only two possible",
+                     "outcomes, such as coin flips, yes/no questions, or the success/failure",
+                     "of a single trial.",
+                     "\n",
+                     "Probability of Success: The Bernoulli distribution is characterized by",
+                     "a single parameter, usually denoted as 'p', which represents the probability",
+                     "of success. The probability of failure is simply 1 minus the probability",
+                     "of success.",
+                     "\n",
+                     "Independent Trials: The Bernoulli distribution assumes that each trial",
+                     "is independent of the others. This means that the outcome of one trial does",
+                     "not affect the outcome of any other trial.",
+                     "\n",
+                     "Applications: The Bernoulli distribution is commonly used in various areas",
+                     "such as statistics, probability theory, and machine learning. It serves as",
+                     "the building block for more complex distributions and models, such as the",
+                     "binomial distribution and logistic regression.",
+                     "\n",
+                     "The Bernoulli distribution provides a simple and intuitive way to model",
+                     "binary events with known probabilities. It is a fundamental distribution",
+                     "that forms the basis for many statistical analyses and models."
+                   )
+    )
+    
+    text
+  })
+  
 }
 
 # Run the application
