@@ -63,7 +63,9 @@ ui <- fluidPage(
       numericInput("numCombinations", "Number of combinations:", value = 1, min = 1, max = 10),
       tags$hr(style = "border-color: #00A68A;"),
       h4("Distribution specific parameters"),
-      uiOutput("distributionParams")
+      uiOutput("distributionParams"),
+      p("Created by Deon Roos. The code is available from the repository below"),
+      tags$a(href = "https://github.com/DeonRoos/Statistical_Distributions", "GitHub Repo")
     ),
     
     mainPanel(
@@ -149,8 +151,8 @@ server <- function(input, output, session) {
                  numericInput(paste0("rate_", i), withMathJax(helpText("Rate (\\(\\lambda\\)):")), value = 2)
                ),
                "Gamma" = tagList(
-                 numericInput(paste0("shape_", i), withMathJax(helpText("Rate (\\(\\alpha\\)):")), value = 2),
-                 numericInput(paste0("rate_gamma_", i), withMathJax(helpText("Rate (\\(\\beta\\)):")), value = 1)
+                 numericInput(paste0("shape_", i), withMathJax(helpText("Shape (\\(\\alpha\\)):")), value = 2),
+                 numericInput(paste0("rate_gamma_", i), withMathJax(helpText("Scale (\\(\\beta\\)):")), value = 1)
                ),
                "Log-Normal" = tagList(
                  numericInput(paste0("meanlog_", i), withMathJax(helpText("Log mean (\\(\\mu\\)):")), value = 0),
@@ -231,7 +233,7 @@ server <- function(input, output, session) {
                      )
                    ),
                    "Bernoulli" = tagList(
-                     withMathJax(paste0("$$f(x) = pl + (1-p)(1-k)$$"))
+                     withMathJax(paste0("$$f(x) = p^{x}(1-p)^{1-x} $$"))
                    )
     )
     
