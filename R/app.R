@@ -110,7 +110,7 @@ ui <- navbarPage(
         
         # Number of parameter combinations
         h4("Number of parameter combinations"),
-        numericInput("numCombinations", "Number of combinations:", value = 1, min = 1, max = 10),
+        numericInput("numCombinations", "Number of combinations:", value = 1, min = 1, max = 5),
         
         # Horizontal line
         tags$hr(style = "border-color: #00A68A;"),
