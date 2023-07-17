@@ -5,9 +5,9 @@ account: datacards-modellingteam
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 9451603
-bundleId: 7456598
-url: https://datacards-modellingteam.shinyapps.io/Distributions/
-when: 1689339491.58316
-lastSyncTime: 1689339491.58318
+bundleId: 7465676
+url: https://deonroos.shinyapps.io/Distributions/
+when: 1689599852.8342
+lastSyncTime: 1689599852.83424
 asMultiple: FALSE
 asStatic: FALSE

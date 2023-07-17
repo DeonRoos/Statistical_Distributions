@@ -20,7 +20,7 @@ default_params <- list(
   `Log-Normal` = list(meanlog = 0, sdlog = 1),
   `Half-Cauchy` = list(scale = 1),
   Tweedie = list(power = 1, mu = 1, phi = 1),
-  Wald = list(shape = 1, rate = 1),
+  Wald = list(mu = 1, lambda = 1),
   Binomial = list(size = 1, prob = 0.5),
   Bernoulli = list(prob = 0.5),
   ZIP = list(lambda = 1, pi = 0.5),
@@ -399,8 +399,8 @@ server <- function(input, output, session) {
                               }
                             },
                             "Wald" = {
-                              if (!is.null(param_values$shape) && !is.null(param_values$rate)) {
-                                dwald(x, shape = param_values$shape, rate = param_values$rate)
+                              if (!is.null(param_values$mu) && !is.null(param_values$lambda)) {
+                                dwald(x, mu = param_values$mu, lambda = param_values$lambda)
                               } else {
                                 rep(0, length(x))
                               }
@@ -830,7 +830,6 @@ server <- function(input, output, session) {
                      "The Student's T distribution, also known as the T distribution, is a probability
                    distribution that is commonly used for statistical inference when the sample
                    size is small or when the population standard deviation is unknown. It is
-                   named after William Sealy Gosset, who developed the distribution under the
                    pseudonym 'Student'. The key features of the Student's T distribution are as follows:
                    Similar to the Normal Distribution: The Student's T distribution resembles
                    the Normal distribution in shape, but it has heavier tails. This means that
