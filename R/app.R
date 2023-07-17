@@ -11,20 +11,20 @@ library(shinydashboard) # For icons
 distributions <- c("Normal", "Poisson", "Uniform", "Beta", "Student's T", "Exponential", "Gamma", "Log-Normal", "Half-Cauchy", "Tweedie", "Wald", "Binomial", "Bernoulli", "ZIP", "Negative Binomial")
 default_params <- list(
   Normal = list(mean = 0, sd = 1),
-  Poisson = list(lambda = 1),
-  Uniform = list(min = 0, max = 1),
-  Beta = list(alpha = 1, beta = 1),
-  `Student's T` = list(df = 1),
-  Exponential = list(rate = 1),
-  Gamma = list(shape = 1, rate = 1),
+  Poisson = list(lambda = 3),
+  Uniform = list(min = -3, max = 3),
+  Beta = list(alpha = 3, beta = 2),
+  `Student's T` = list(df = 2),
+  Exponential = list(rate = 2),
+  Gamma = list(shape = 2, rate = 1),
   `Log-Normal` = list(meanlog = 0, sdlog = 1),
   `Half-Cauchy` = list(scale = 1),
-  Tweedie = list(power = 1, mu = 1, phi = 1),
-  Wald = list(mu = 1, lambda = 1),
+  Tweedie = list(power = 3, mu = 3, phi = 1),
+  Wald = list(mu = 3, lambda = 3),
   Binomial = list(size = 1, prob = 0.5),
   Bernoulli = list(prob = 0.5),
-  ZIP = list(lambda = 1, pi = 0.5),
-  `Negative Binomial` = list(size = 1, prob = 0.5)
+  ZIP = list(lambda = 1, pi = 0.2),
+  `Negative Binomial` = list(size = 1, mu = 3)
 )
 
 
@@ -109,8 +109,9 @@ ui <- navbarPage(
           inputId = "distribution",
           label = "Select distribution",
           choices = list(
-            Continuous = c("Normal", sort(c("Uniform", "Beta", "Student's T", "Exponential", "Gamma", "Log-Normal", "Half-Cauchy", "Wald"))),
-            Discrete = sort(c("Poisson", "Binomial", "Bernoulli", "ZIP", "Tweedie", "Negative Binomial"))
+            `Continuous real` = c("Normal", sort(c("Uniform", "Beta", "Student's T", "Half-Cauchy"))),
+            `Continuous positive` = c("Exponential", "Tweedie", "Gamma", "Log-Normal", "Wald"),
+            Discrete = sort(c("Poisson", "Binomial", "Bernoulli", "ZIP", "Negative Binomial"))
           ),
           options = list(
             `live-search` = TRUE
@@ -211,8 +212,9 @@ ui <- navbarPage(
           inputId = "selectedDistributions",
           label = "Select distribution",
           choices = list(
-            Continuous = c("Normal", sort(c("Uniform", "Beta", "Student's T", "Exponential", "Gamma", "Log-Normal", "Half-Cauchy", "Wald"))),
-            Discrete = sort(c("Poisson", "Binomial", "Bernoulli", "Tweedie", "ZIP", "Negative Binomial"))
+            `Continuous real` = c("Normal", sort(c("Uniform", "Beta", "Student's T", "Half-Cauchy"))),
+            `Continuous positive` = c("Exponential", "Tweedie", "Gamma", "Log-Normal", "Wald"),
+            Discrete = sort(c("Poisson", "Binomial", "Bernoulli", "ZIP", "Negative Binomial"))
           ),
           multiple = TRUE,
           selected = "Normal",
@@ -393,7 +395,7 @@ server <- function(input, output, session) {
                             },
                             "Tweedie" = {
                               if (!is.null(param_values$power) && !is.null(param_values$mu) && !is.null(param_values$phi)) {
-                                dtweedie(as.integer(x), power = param_values$power, mu = param_values$mu, phi = param_values$phi)
+                                dtweedie(x, power = param_values$power, mu = param_values$mu, phi = param_values$phi)
                               } else {
                                 rep(0, length(x))
                               }
@@ -427,8 +429,8 @@ server <- function(input, output, session) {
                               }
                             },
                             "Negative Binomial" = {
-                              if (!is.null(param_values$size) && !is.null(param_values$prob)) {
-                                dnbinom(as.integer(x), size = param_values$size, prob = param_values$prob)
+                              if (!is.null(param_values$size) && !is.null(param_values$mu)) {
+                                dnbinom(as.integer(x), size = param_values$size, mu = param_values$mu)
                               } else {
                                 rep(0, length(x))
                               }
