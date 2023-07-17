@@ -7,6 +7,27 @@ library(LaplacesDemon)  # For additional probability distributions
 library(extraDistr)     # For additional probability distributions
 library(shinydashboard) # For icons
 
+# Define distributions and their default parameter values
+distributions <- c("Normal", "Poisson", "Uniform", "Beta", "Student's T", "Exponential", "Gamma", "Log-Normal", "Half-Cauchy", "Tweedie", "Wald", "Binomial", "Bernoulli", "ZIP", "Negative Binomial")
+default_params <- list(
+  Normal = list(mean = 0, sd = 1),
+  Poisson = list(lambda = 1),
+  Uniform = list(min = 0, max = 1),
+  Beta = list(alpha = 1, beta = 1),
+  `Student's T` = list(df = 1),
+  Exponential = list(rate = 1),
+  Gamma = list(shape = 1, rate = 1),
+  `Log-Normal` = list(meanlog = 0, sdlog = 1),
+  `Half-Cauchy` = list(scale = 1),
+  Tweedie = list(power = 1, mu = 1, phi = 1),
+  Wald = list(shape = 1, rate = 1),
+  Binomial = list(size = 1, prob = 0.5),
+  Bernoulli = list(prob = 0.5),
+  ZIP = list(lambda = 1, pi = 0.5),
+  `Negative Binomial` = list(size = 1, prob = 0.5)
+)
+
+
 # Define UI
 ui <- navbarPage(
   title = "Explore Statistical Distributions",
@@ -88,8 +109,8 @@ ui <- navbarPage(
           inputId = "distribution",
           label = "Select distribution",
           choices = list(
-            Continuous = c("Normal", sort(c("Uniform", "Beta", "Student's T", "Exponential", "Gamma", "Log-Normal", "Half-Cauchy", "Tweedie", "Wald"))),
-            Discrete = sort(c("Poisson", "Binomial", "Bernoulli", "ZIP", "Negative Binomial"))
+            Continuous = c("Normal", sort(c("Uniform", "Beta", "Student's T", "Exponential", "Gamma", "Log-Normal", "Half-Cauchy", "Wald"))),
+            Discrete = sort(c("Poisson", "Binomial", "Bernoulli", "ZIP", "Tweedie", "Negative Binomial"))
           ),
           options = list(
             `live-search` = TRUE
@@ -173,6 +194,45 @@ ui <- navbarPage(
           )
         )
            )),
+  
+  # Multi distribution comparisons
+  tabPanel(title = "Compare",
+           icon = icon("line-chart"),
+           sidebarLayout(
+             sidebarPanel(
+               id = "sidebar",
+               style = "
+        background: linear-gradient(#444654, #3F3D39);
+        /* background-color: #444654; */
+        border-radius: 10px;
+        border: 2px solid #00A68A;
+        box-shadow: 0 0 10px 5px rgba(0, 166, 138, 0.3);",
+        pickerInput(
+          inputId = "selectedDistributions",
+          label = "Select distribution",
+          choices = list(
+            Continuous = c("Normal", sort(c("Uniform", "Beta", "Student's T", "Exponential", "Gamma", "Log-Normal", "Half-Cauchy", "Wald"))),
+            Discrete = sort(c("Poisson", "Binomial", "Bernoulli", "Tweedie", "ZIP", "Negative Binomial"))
+          ),
+          multiple = TRUE,
+          selected = "Normal",
+          options = list(
+            `live-search` = TRUE
+          )
+        ),
+        # Range of possible values
+        h4("Range of candidate values"),
+        numericInput("xminmulti", "Minimum X candidate:", value = -10, step = 0.5),
+        numericInput("xmaxmulti", "Maximum X candidate:", value = 10), step = 0.5,
+        uiOutput("paramInputs")
+             ),
+        mainPanel(
+          h4("Plot to allow comparisons of different distributions"),
+          plotOutput("densityPlotMulti")
+        )
+           )
+  ),
+  
   # About tab
   tabPanel(title = NULL,
            icon = icon("info-circle"),
@@ -230,6 +290,181 @@ ui <- navbarPage(
 
 # Define server logic
 server <- function(input, output, session) {
+  
+  # Generate parameter inputs for selected distributions
+  output$paramInputs <- renderUI({
+    selected_distributions <- input$selectedDistributions
+    param_inputs <- lapply(selected_distributions, function(dist) {
+      params <- default_params[[dist]]
+      param_list <- lapply(names(params), function(param) {
+        value <- params[[param]]
+        numericInput(paste0(param, "_", dist), param, value = value)
+      })
+      tagList(
+        h4(dist),
+        param_list
+      )
+    })
+    do.call(tagList, param_inputs)
+  })
+  
+  # Generate and render the density plot
+  output$densityPlotMulti <- renderPlot({
+    selected_distributions <- input$selectedDistributions
+    
+    if (is.null(selected_distributions) || length(selected_distributions) == 0) {
+      return(NULL)
+    }
+    
+    df_density <- data.frame(x = numeric(0), density = numeric(0), distribution = character(0), stringsAsFactors = FALSE)
+    
+    for (dist in selected_distributions) {
+      params <- default_params[[dist]]
+      param_values <- reactiveValuesToList(input)
+      param_values <- param_values[grep(paste0("^.*", dist, "$"), names(param_values))]
+      
+      xmin <- input$xminmulti
+      xmax <- input$xmaxmulti
+      x <- seq(xmin, xmax, length.out = 100)
+      
+      density_out <- switch(dist,
+                            "Normal" = {
+                              if (!is.null(param_values$mean) && !is.null(param_values$sd)) {
+                                dnorm(x, mean = param_values$mean, sd = param_values$sd)
+                              } else {
+                                rep(0, length(x))
+                              }
+                            },
+                            "Poisson" = {
+                              if (!is.null(param_values$lambda)) {
+                                dpois(as.integer(x), lambda = param_values$lambda)
+                              } else {
+                                rep(0, length(x))
+                              }
+                            },
+                            "Uniform" = {
+                              if (!is.null(param_values$min) && !is.null(param_values$max)) {
+                                dunif(x, min = param_values$min, max = param_values$max)
+                              } else {
+                                rep(0, length(x))
+                              }
+                            },
+                            "Beta" = {
+                              if (!is.null(param_values$alpha) && !is.null(param_values$beta)) {
+                                dbeta(x, shape1 = param_values$alpha, shape2 = param_values$beta)
+                              } else {
+                                rep(0, length(x))
+                              }
+                            },
+                            "Student's T" = {
+                              if (!is.null(param_values$df)) {
+                                dt(x, df = param_values$df)
+                              } else {
+                                rep(0, length(x))
+                              }
+                            },
+                            "Exponential" = {
+                              if (!is.null(param_values$rate)) {
+                                dexp(x, rate = param_values$rate)
+                              } else {
+                                rep(0, length(x))
+                              }
+                            },
+                            "Gamma" = {
+                              if (!is.null(param_values$shape) && !is.null(param_values$rate)) {
+                                dgamma(x, shape = param_values$shape, rate = param_values$rate)
+                              } else {
+                                rep(0, length(x))
+                              }
+                            },
+                            "Log-Normal" = {
+                              if (!is.null(param_values$meanlog) && !is.null(param_values$sdlog)) {
+                                dlnorm(x, meanlog = param_values$meanlog, sdlog = param_values$sdlog)
+                              } else {
+                                rep(0, length(x))
+                              }
+                            },
+                            "Half-Cauchy" = {
+                              if (!is.null(param_values$scale)) {
+                                dcauchy(x, location = 0, scale = param_values$scale)
+                              } else {
+                                rep(0, length(x))
+                              }
+                            },
+                            "Tweedie" = {
+                              if (!is.null(param_values$power) && !is.null(param_values$mu) && !is.null(param_values$phi)) {
+                                dtweedie(as.integer(x), power = param_values$power, mu = param_values$mu, phi = param_values$phi)
+                              } else {
+                                rep(0, length(x))
+                              }
+                            },
+                            "Wald" = {
+                              if (!is.null(param_values$shape) && !is.null(param_values$rate)) {
+                                dwald(x, shape = param_values$shape, rate = param_values$rate)
+                              } else {
+                                rep(0, length(x))
+                              }
+                            },
+                            "Binomial" = {
+                              if (!is.null(param_values$size) && !is.null(param_values$prob)) {
+                                dbinom(as.integer(x), size = param_values$size, prob = param_values$prob)
+                              } else {
+                                rep(0, length(x))
+                              }
+                            },
+                            "Bernoulli" = {
+                              if (!is.null(param_values$prob)) {
+                                dbern(as.integer(x), prob = param_values$prob)
+                              } else {
+                                rep(0, length(x))
+                              }
+                            },
+                            "ZIP" = {
+                              if (!is.null(param_values$lambda) && !is.null(param_values$pi)) {
+                                dzip(as.integer(x), lambda = param_values$lambda, pi = param_values$pi)
+                              } else {
+                                rep(0, length(x))
+                              }
+                            },
+                            "Negative Binomial" = {
+                              if (!is.null(param_values$size) && !is.null(param_values$prob)) {
+                                dnbinom(as.integer(x), size = param_values$size, prob = param_values$prob)
+                              } else {
+                                rep(0, length(x))
+                              }
+                            }
+      )
+      
+      df <- data.frame(x = x, density = density_out, distribution = dist, stringsAsFactors = FALSE)
+      df$density <- df$density / max(df$density, na.rm = TRUE)
+      df_density <- rbind(df_density, df)
+    }
+    
+    df_density <- df_density[-1, ]
+    
+    ggplot(df_density, aes(x, density, color = distribution, group = as.factor(distribution))) +
+      geom_line(size = 1) +
+      ggtitle("Multiple Distribution Density Plot") +
+      xlab("Possible values from the current distribution") +
+      ylab("Standardised density") +
+      labs(caption = "The y-axis is standardised to allow easier comparison between distributions.") +
+      scale_color_brewer(palette = "Set2") +
+      theme_minimal() +
+      guides(color = guide_legend(title = "Distribution")) +
+      theme(
+        panel.background = element_blank(),
+        plot.background = element_rect(fill = "#202123"),
+        plot.title = element_text(color = "white", size = 16),
+        axis.text = element_text(color = "white", size = 12),
+        axis.title = element_text(color = "white", size = 14),
+        legend.title = element_text(color = "white", size = 12),
+        legend.text = element_text(color = "white", size = 10),
+        panel.border = element_blank(),
+        panel.grid.major = element_line(color = "#444654"),
+        panel.grid.minor = element_line(color = "#444654")
+      )
+  })
+  
   # Get name of selected distribution
   output$distName <- renderText({
     name <- paste("The", input$distribution, "distribution")
