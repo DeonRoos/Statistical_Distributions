@@ -216,14 +216,14 @@ ui <- navbarPage(
         box-shadow: 0 0 10px 5px rgba(0, 166, 138, 0.3);",
         pickerInput(
           inputId = "selectedDistributions",
-          label = "Select distribution",
+          label = "Select multiple distributions",
           choices = list(
             `Continuous real` = c("Normal", sort(c("Uniform", "Beta", "Student's T", "Half-Cauchy"))),
             `Continuous positive` = c("Exponential", "Tweedie", "Gamma", "Log-Normal", "Wald"),
             Discrete = sort(c("Poisson", "Binomial", "Bernoulli", "ZIP", "Negative Binomial"))
           ),
           multiple = TRUE,
-          selected = "Normal",
+          selected = c("Poisson", "ZIP"),
           options = list(
             `live-search` = TRUE
           )
