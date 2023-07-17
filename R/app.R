@@ -90,8 +90,8 @@ ui <- navbarPage(
   ),
   
   # Home tab
-  tabPanel(title = NULL,
-           icon = icon("home"),
+  tabPanel(title = "Explore",
+           icon = icon("search-plus"),
            # Sidebar layout
            sidebarLayout(
              # Sidebar panel
@@ -190,7 +190,13 @@ ui <- navbarPage(
               
               # Examples of data generated from the distribution
               h4("Examples of data generated from this distribution"),
-              textOutput("distributionEG")
+              textOutput("distributionEG"),
+              br(),
+              tags$hr(style = "border-color: #00A68A;"),
+              
+              # Footer text and link to GitHub repository
+              p("This app was created by Deon Roos. The code is available from the repository linked below"),
+              tags$a(href = "https://github.com/DeonRoos/Statistical_Distributions", "GitHub Repo")
             )
           )
         )
@@ -230,7 +236,15 @@ ui <- navbarPage(
              ),
         mainPanel(
           h4("Plot to allow comparisons of different distributions"),
-          plotOutput("densityPlotMulti")
+          plotOutput("densityPlotMulti"),
+          
+          h6("Densities are standardised such that peaks occur at 1 (i.e. f(x) / max(f(x))."),
+          
+          tags$hr(style = "border-color: #00A68A;"),
+          
+          # Footer text and link to GitHub repository
+          p("This app was created by Deon Roos. The code is available from the repository linked below"),
+          tags$a(href = "https://github.com/DeonRoos/Statistical_Distributions", "GitHub Repo")
         )
            )
   ),
@@ -449,7 +463,6 @@ server <- function(input, output, session) {
       ggtitle("Multiple Distribution Density Plot") +
       xlab("Possible values from the current distribution") +
       ylab("Standardised density") +
-      labs(caption = "The y-axis is standardised to allow easier comparison between distributions.") +
       scale_color_brewer(palette = "Set2") +
       theme_minimal() +
       guides(color = guide_legend(title = "Distribution")) +
