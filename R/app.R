@@ -117,64 +117,115 @@ getParams <- function(dist, i, input) {
   )
 }
 
-# Helper: generate UI for distribution-specific parameter inputs for one parameter set
 paramInputsForDist <- function(dist, i, defaults) {
   switch(dist,
          Normal = tagList(
-           numericInput(paste0("mean_", i), "Mean (μ):", value = defaults$mean, step = 0.1),
-           numericInput(paste0("sd_", i), "Standard Deviation (σ):", value = defaults$sd, step = 0.1)
+           numericInput(paste0("mean_", i),
+                        label = tags$span("Mean (μ):", title = "Average value of the distribution"),
+                        value = defaults$mean, step = 0.1),
+           numericInput(paste0("sd_", i),
+                        label = tags$span("Standard Deviation (σ):", title = "Measure of spread about the mean"),
+                        value = defaults$sd, step = 0.1)
          ),
          Poisson = tagList(
-           numericInput(paste0("lambda_", i), "Lambda (λ):", value = defaults$lambda, step = 1)
+           numericInput(paste0("lambda_", i),
+                        label = tags$span("Lambda (λ):", title = "Average rate of events"),
+                        value = defaults$lambda, step = 1)
          ),
          Uniform = tagList(
-           numericInput(paste0("min_", i), "Minimum (a):", value = defaults$min, step = 0.1),
-           numericInput(paste0("max_", i), "Maximum (b):", value = defaults$max, step = 0.1)
+           numericInput(paste0("min_", i),
+                        label = tags$span("Minimum (a):", title = "Smallest possible value in the range"),
+                        value = defaults$min, step = 0.1),
+           numericInput(paste0("max_", i),
+                        label = tags$span("Maximum (b):", title = "Largest possible value in the range"),
+                        value = defaults$max, step = 0.1)
          ),
          Beta = tagList(
-           numericInput(paste0("alpha_", i), "Shape α:", value = defaults$alpha, step = 0.1),
-           numericInput(paste0("beta_", i), "Shape β:", value = defaults$beta, step = 0.1)
+           numericInput(paste0("alpha_", i),
+                        label = tags$span("Shape α:", title = "Controls the left side of the distribution"),
+                        value = defaults$alpha, step = 0.1),
+           numericInput(paste0("beta_", i),
+                        label = tags$span("Shape β:", title = "Controls the right side of the distribution"),
+                        value = defaults$beta, step = 0.1)
          ),
          `Student's T` = tagList(
-           numericInput(paste0("df_", i), "Degrees of Freedom (ν):", value = defaults$df, step = 1)
+           numericInput(paste0("df_", i),
+                        label = tags$span("Degrees of Freedom (ν):", title = "Lower degrees imply heavier tails"),
+                        value = defaults$df, step = 1)
          ),
          Exponential = tagList(
-           numericInput(paste0("rate_", i), "Rate (λ):", value = defaults$rate, step = 0.1)
+           numericInput(paste0("rate_", i),
+                        label = tags$span("Rate (λ):", title = "Average number of events per time unit (for waiting times)"),
+                        value = defaults$rate, step = 0.1)
          ),
          Gamma = tagList(
-           numericInput(paste0("shape_", i), "Shape (α):", value = defaults$shape, step = 0.1),
-           numericInput(paste0("rate_", i), "Rate (λ):", value = defaults$rate, step = 0.1)
+           numericInput(paste0("shape_", i),
+                        label = tags$span("Shape (α):", title = "Controls the form of the distribution"),
+                        value = defaults$shape, step = 0.1),
+           numericInput(paste0("rate_", i),
+                        label = tags$span("Rate (λ):", title = "Inversely related to the scale; controls decay"),
+                        value = defaults$rate, step = 0.1)
          ),
          `Log-Normal` = tagList(
-           numericInput(paste0("meanlog_", i), "Log-mean (μ):", value = defaults$meanlog, step = 0.1),
-           numericInput(paste0("sdlog_", i), "Log-standard Deviation (σ):", value = defaults$sdlog, step = 0.1)
+           numericInput(paste0("meanlog_", i),
+                        label = tags$span("Log-mean (μ):", title = "Mean of the logarithm of the data"),
+                        value = defaults$meanlog, step = 0.1),
+           numericInput(paste0("sdlog_", i),
+                        label = tags$span("Log-standard Deviation (σ):", title = "Spread of the logarithm of the data"),
+                        value = defaults$sdlog, step = 0.1)
          ),
          `Half-Cauchy` = tagList(
-           numericInput(paste0("scale_", i), "Scale (α):", value = defaults$scale, step = 0.1)
+           numericInput(paste0("scale_", i),
+                        label = tags$span("Scale (α):", title = "Determines the spread of the distribution"),
+                        value = defaults$scale, step = 0.1)
          ),
          Tweedie = tagList(
-           numericInput(paste0("p_", i), "Power (p):", value = defaults$p, step = 0.1),
-           numericInput(paste0("mu_", i), "Mean (μ):", value = defaults$mu, step = 0.1),
-           numericInput(paste0("phi_", i), "Dispersion (φ):", value = defaults$phi, step = 0.1)
+           numericInput(paste0("p_", i),
+                        label = tags$span("Power (p):", title = "Determines the type of Tweedie distribution"),
+                        value = defaults$p, step = 0.1),
+           numericInput(paste0("mu_", i),
+                        label = tags$span("Mean (μ):", title = "Average value of the distribution"),
+                        value = defaults$mu, step = 0.1),
+           numericInput(paste0("phi_", i),
+                        label = tags$span("Dispersion (φ):", title = "Variability of the data beyond the mean"),
+                        value = defaults$phi, step = 0.1)
          ),
          Wald = tagList(
-           numericInput(paste0("mu_", i), "Mean (μ):", value = defaults$mu, step = 0.1),
-           numericInput(paste0("lambda_", i), "Lambda (λ):", value = defaults$lambda, step = 0.1)
+           numericInput(paste0("mu_", i),
+                        label = tags$span("Mean (μ):", title = "Central tendency of the data"),
+                        value = defaults$mu, step = 0.1),
+           numericInput(paste0("lambda_", i),
+                        label = tags$span("Lambda (λ):", title = "Shape parameter controlling tail behavior"),
+                        value = defaults$lambda, step = 0.1)
          ),
          Binomial = tagList(
-           numericInput(paste0("size_", i), "Number of Trials (n):", value = defaults$size, step = 1),
-           numericInput(paste0("prob_", i), "Success Probability (p):", value = defaults$prob, min = 0, max = 1, step = 0.1)
+           numericInput(paste0("size_", i),
+                        label = tags$span("Number of Trials (n):", title = "Total number of independent experiments"),
+                        value = defaults$size, step = 1),
+           numericInput(paste0("prob_", i),
+                        label = tags$span("Success Probability (p):", title = "Probability of success on a single trial"),
+                        value = defaults$prob, min = 0, max = 1, step = 0.1)
          ),
          Bernoulli = tagList(
-           numericInput(paste0("p_", i), "Probability (p):", value = defaults$p, min = 0, max = 1, step = 0.1)
+           numericInput(paste0("p_", i),
+                        label = tags$span("Probability (p):", title = "Probability of success in the trial"),
+                        value = defaults$p, min = 0, max = 1, step = 0.1)
          ),
          ZIP = tagList(
-           numericInput(paste0("lambda_", i), "Lambda (λ):", value = defaults$lambda, step = 0.1),
-           numericInput(paste0("pi_", i), "Zero Inflation Probability (π):", value = defaults$pi, min = 0, max = 1, step = 0.1)
+           numericInput(paste0("lambda_", i),
+                        label = tags$span("Lambda (λ):", title = "Average rate for the Poisson component"),
+                        value = defaults$lambda, step = 0.1),
+           numericInput(paste0("pi_", i),
+                        label = tags$span("Zero Inflation Probability (π):", title = "Probability that the value is an extra zero"),
+                        value = defaults$pi, min = 0, max = 1, step = 0.1)
          ),
          `Negative Binomial` = tagList(
-           numericInput(paste0("size_", i), "Dispersion Parameter (n):", value = defaults$size, min = 0, step = 1),
-           numericInput(paste0("mu_", i), "Mean (μ):", value = defaults$mu, min = 0, step = 0.1)
+           numericInput(paste0("size_", i),
+                        label = tags$span("Dispersion Parameter (n):", title = "Controls overdispersion; higher values yield less variance"),
+                        value = defaults$size, min = 0, step = 1),
+           numericInput(paste0("mu_", i),
+                        label = tags$span("Mean (μ):", title = "Average count value"),
+                        value = defaults$mu, min = 0, step = 0.1)
          )
   )
 }
@@ -203,7 +254,8 @@ ui <- navbarPage(
                style = "background: linear-gradient(#444654, #3F3D39); border-radius: 10px; border: 2px solid #00A68A; box-shadow: 0 0 10px 5px rgba(0,166,138,0.3);",
                pickerInput(
                  inputId = "distribution",
-                 label = "Select distribution",
+                 label = tags$span("Select distribution:",
+                                   title = "Choose which statistical distribution to explore"),
                  choices = list(
                    "Continuous real" = c("Normal", sort(c("Uniform", "Beta", "Student's T", "Half-Cauchy"))),
                    "Continuous positive" = c("Exponential", "Tweedie", "Gamma", "Log-Normal", "Wald"),
@@ -213,29 +265,44 @@ ui <- navbarPage(
                ),
                tags$hr(style = "border-color: #00A68A;"),
                h4("X-axis interval for visualization"),
-               numericInput("xmin", "Minimum x-value:", value = range_defaults[["Normal"]]$xmin, step = 0.5),
-               numericInput("xmax", "Maximum x-value:", value = range_defaults[["Normal"]]$xmax, step = 0.5),
-               numericInput("nobs", "Number of random values:", value = 100, min = 1, max = 5000, step = 25),
+               numericInput("xmin", 
+                            label = tags$span("Minimum x-value:",
+                                              title = "Specify the smallest x-value for the plots"),
+                            value = range_defaults[["Normal"]]$xmin, step = 0.5),
+               numericInput("xmax", 
+                            label = tags$span("Maximum x-value:",
+                                              title = "Specify the largest x-value for the plots"),
+                            value = range_defaults[["Normal"]]$xmax, step = 0.5),
+               numericInput("nobs", 
+                            label = tags$span("Number of random values:",
+                                              title = "Enter how many random samples to generate"),
+                            value = 100, min = 1, max = 5000, step = 25),
                tags$hr(style = "border-color: #00A68A;"),
-               h4("Want to compare different parameter values?"),
+               h4("Explore different parameter values"),
                fluidRow(
-                 column(6, actionButton("addSet", "Add Parameter Set")),
-                 column(6, actionButton("removeSet", "Remove Parameter Set"))
+                 column(6, actionButton("addSet", "Add Parameter Set", 
+                                        title = "Add a new set of parameters to generate a separate PDF and sample")),
+                 column(6, actionButton("removeSet", "Remove Parameter Set", 
+                                        title = "Remove the most recently added parameter set (minimum of 1)"))
                ),
                br(),
                uiOutput("setCountDisplay"),
                tags$hr(style = "border-color: #00A68A;"),
-               h4("Distribution specific parameters"),
+               h4(tags$span("Distribution specific parameters",
+                            title = "Change the parameters for the selected distribution")),
                uiOutput("distributionParams"),
-               actionButton("resetDefaults", "Reset to Defaults")
+               actionButton("resetDefaults", "Reset to Defaults", 
+                            title = "Revert all parameters to their default values")
              ),
              mainPanel(
                fluidRow(
                  column(6,
                         div(id = "myTextOutput", textOutput("distName")),
                         plotOutput("densityPlot"),
+                        h6("Fig. 1: The PDF plotted using the actual density values."),
                         br(),
                         plotOutput("randomPlot"),
+                        h6("Fig. 2: Histogram of randomly generated values.")
                  ),
                  column(6,
                         br(), br(),
@@ -265,25 +332,32 @@ ui <- navbarPage(
                style = "background: linear-gradient(#444654, #3F3D39); border-radius: 10px; border: 2px solid #00A68A; box-shadow: 0 0 10px 5px rgba(0,166,138,0.3);",
                pickerInput(
                  inputId = "selectedDistributions",
-                 label = "Select multiple distributions",
+                 label = tags$span("Select multiple distributions:",
+                                   title = "Choose one or more distributions for comparison"),
                  choices = list(
                    "Continuous real" = c("Normal", sort(c("Uniform", "Beta", "Student's T", "Half-Cauchy"))),
                    "Continuous positive" = c("Exponential", "Tweedie", "Gamma", "Log-Normal", "Wald"),
                    "Discrete" = sort(c("Poisson", "Binomial", "Bernoulli", "ZIP", "Negative Binomial"))
                  ),
                  multiple = TRUE,
-                 selected = c("Normal", "Beta"),
+                 selected = c("Poisson", "ZIP"),
                  options = list(`live-search` = TRUE)
                ),
                h4("X-axis interval for visualization"),
-               numericInput("xminmulti", "Minimum x-value:", value = -10, step = 0.5),
-               numericInput("xmaxmulti", "Maximum x-value:", value = 10, step = 0.5),
+               numericInput("xminmulti", 
+                            label = tags$span("Minimum x-value:",
+                                              title = "Specify the smallest x-value for comparison plots"),
+                            value = -10, step = 0.5),
+               numericInput("xmaxmulti", 
+                            label = tags$span("Maximum x-value:",
+                                              title = "Specify the largest x-value for comparison plots"),
+                            value = 10, step = 0.5),
                uiOutput("paramInputs")
              ),
              mainPanel(
                h4("Multi-distribution Comparison Plot"),
                plotOutput("densityPlotMulti"),
-               h6("Densities are standardized (peak = 1)."),
+               h6("Densities are plotted with actual values (peak = 1 is not enforced)."),
                tags$hr(style = "border-color: #00A68A;"),
                p("This app was created by Deon Roos. The code is available on GitHub:"),
                tags$a(href = "https://github.com/DeonRoos/Statistical_Distributions", "GitHub Repo")
@@ -303,7 +377,6 @@ ui <- navbarPage(
            tags$a(href = "https://github.com/DeonRoos/Statistical_Distributions", "GitHub Repo")
   )
 )
-
 # Server logic
 server <- function(input, output, session) {
   
@@ -876,7 +949,6 @@ server <- function(input, output, session) {
     
     ggplot(df_density, aes(x = x, y = density, color = distribution, group = as.factor(distribution))) +
       geom_line(size = 1) +
-      ggtitle("Multiple Distribution Density Plot") +
       xlab("Possible values (x)") +
       ylab("Standardised Density") +
       scale_color_brewer(palette = "Set2") +
