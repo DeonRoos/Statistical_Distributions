@@ -364,6 +364,104 @@ ui <- navbarPage(
              )
            )
   ),
+
+  ########
+  tabPanel("Modelling", icon = icon("flask"),
+           sidebarLayout(
+             sidebarPanel(
+               style = "background: linear-gradient(#444654, #3F3D39);
+               border-radius: 10px;
+               border: 2px solid #00A68A;
+               box-shadow: 0 0 10px 5px rgba(0,166,138,0.3);",
+               
+               # Simulation distribution selector
+               selectInput("sim_dist", "Simulation Distribution:",
+                           choices = c("Normal", "Poisson", "Binomial", "Bernoulli"),
+                           selected = "Normal"),
+               
+               # If Binomial is chosen, specify number of trials
+               conditionalPanel(
+                 condition = "input.sim_dist == 'Binomial'",
+                 numericInput("sim_trials", "Number of trials:", value = 10, min = 1)
+               ),
+               
+               numericInput("sim_N", "Sample size (N):", value = 100, min = 10),
+               conditionalPanel(
+                 condition = "input.sim_dist == 'Normal'",
+                 numericInput("sim_sd", "Error standard deviation:", value = 1, min = 0, step = 0.1)
+               ),
+               
+               # Intercept is now always active
+               numericInput("sim_intercept", "Intercept:", value = 0, step = 0.1),
+               
+               # Continuous predictor: user can choose whether to include x; slope only appears if x is included
+               checkboxInput("sim_use_x", "Include continuous predictor (x)", value = TRUE),
+               conditionalPanel(
+                 condition = "input.sim_use_x == true",
+                 numericInput("sim_slope", "Slope:", value = 1, step = 0.1)
+               ),
+               
+               # Categorical predictor block
+               checkboxInput("sim_use_grp", "Include categorical predictor (grp)", value = FALSE),
+               conditionalPanel(
+                 condition = "input.sim_use_grp == true",
+                 selectInput("sim_grps", "Number of groups:", choices = c(2, 3), selected = 2),
+                 numericInput("sim_grpB", "Effect for Group B (reference = Group A):", value = 1, step = 0.1),
+                 conditionalPanel(
+                   condition = "input.sim_grps == 3",
+                   numericInput("sim_grpC", "Effect for Group C:", value = 2, step = 0.1)
+                 )
+               ),
+               
+               # Model family for fitting the simulated data
+               selectInput("mod_family", "Model Family for Fitting:",
+                           choices = c("Normal", "Poisson", "Binomial", "Bernoulli"),
+                           selected = "Normal")
+             ),
+             mainPanel(
+               tabsetPanel(
+                 tabPanel("Predicted Relationship", plotOutput("predPlot")),
+                 tabPanel("Forest Plot", plotOutput("forestPlot")),
+                 tabPanel("Simulated Data",
+                          # Inject custom CSS that overrides DataTables defaults
+                          tags$style(HTML("
+    /* Make text in search/filter, length, info, and pagination controls white */
+    .dataTables_wrapper .dataTables_info,
+    .dataTables_wrapper .dataTables_length label,
+    .dataTables_wrapper .dataTables_filter label,
+    .dataTables_wrapper .dataTables_paginate,
+    .dataTables_wrapper .dataTables_paginate .paginate_button {
+      color: white !important;
+    }
+
+    /* Make table header text and sorting icons white */
+    table.dataTable thead .sorting,
+    table.dataTable thead .sorting_asc,
+    table.dataTable thead .sorting_desc {
+      color: white !important;
+    }
+
+    /* Make cell borders dark and text white in header and body */
+    table.dataTable td,
+    table.dataTable th {
+      border-color: #444654 !important;
+      color: white !important;
+    }
+
+    /* Style pagination buttons to match your dark theme */
+    .dataTables_wrapper .dataTables_paginate .paginate_button {
+      background-color: #444654 !important;
+      color: white !important;
+    }
+  ")),
+  
+  DT::dataTableOutput("paramSummary")
+                 )
+  )
+             )
+           )
+  ),
+  #######
   tabPanel("About",
            icon = icon("info-circle"),
            h2("App Guidance"),
@@ -1205,6 +1303,302 @@ server <- function(input, output, session) {
     )
     text
   })
+  
+  
+
+# Simulate data -----------------------------------------------------------
+
+  observeEvent(input$sim_dist, {
+    defaultFam <- switch(input$sim_dist,
+                         "Normal" = "Normal",
+                         "Poisson" = "Poisson",
+                         "Binomial" = "Binomial",
+                         "Bernoulli" = "Binomial"
+    )
+    updateSelectInput(session, "mod_family", selected = defaultFam)
+  })  
+  
+  simData <- reactive({
+    N <- input$sim_N
+    if (input$sim_use_x) {
+      x <- runif(N, 0, 10)
+    } else {
+      x <- rep(NA, N)
+    }
+    if (input$sim_use_grp) {
+      grps <- as.numeric(input$sim_grps)
+      grp <- paste("Group", toupper(letters[sample(1:grps, size = N, replace = TRUE)]))
+    } else {
+      grp <- rep(NA, N)
+    }
+    
+    # Build the true linear predictor
+    linear_pred <- rep(0, N)
+    if (input$sim_use_x) {
+      linear_pred <- linear_pred + input$sim_intercept + input$sim_slope * x
+    } else {
+      linear_pred <- linear_pred + input$sim_intercept
+    }
+    if (input$sim_use_grp) {
+      effect <- rep(0, N)
+      effect[grp == "Group B"] <- input$sim_grpB
+      if(as.numeric(input$sim_grps) == 3) {
+        effect[grp == "Group C"] <- input$sim_grpC
+      }
+      linear_pred <- linear_pred + effect
+    }
+    
+    # Simulate y based on chosen simulation distribution
+    sim_y <- switch(input$sim_dist,
+                    "Normal" = rnorm(N, mean = linear_pred, sd = input$sim_sd),
+                    "Poisson" = rpois(N, lambda = exp(linear_pred)),
+                    "Binomial" = rbinom(N, size = input$sim_trials, prob = plogis(linear_pred)),
+                    "Bernoulli" = rbinom(N, size = 1, prob = plogis(linear_pred))
+    )
+    
+    data.frame(y = sim_y, x = x, grp = grp)
+  })
+  
+  fitModel <- reactive({
+    df <- simData()
+    
+    # Build the predictor part of the formula as a string
+    if (input$sim_use_x & input$sim_use_grp) {
+      predictor_str <- "x + grp"
+    } else if (input$sim_use_x) {
+      predictor_str <- "x"
+    } else if (input$sim_use_grp) {
+      predictor_str <- "grp"
+    } else {
+      predictor_str <- "1"
+    }
+    
+    # If the model family is Binomial but simulation distribution isn’t Bernoulli, use cbind technique
+    if (input$mod_family == "Binomial" & input$sim_dist != "Bernoulli") {
+      df$fail <- input$sim_trials - df$y
+      form <- as.formula(paste("cbind(y, fail) ~", predictor_str))
+      mod <- glm(form, data = df, family = binomial())
+    } else {
+      form <- as.formula(paste("y ~", predictor_str))
+      fam <- switch(input$mod_family,
+                    "Normal"    = gaussian(),
+                    "Poisson"   = poisson(),
+                    "Bernoulli" = binomial())
+      mod <- glm(form, data = df, family = fam)
+    }
+    
+    mod
+  })
+  
+  
+  
+  # Forest plot comparing true vs estimated parameters
+  output$forestPlot <- renderPlot({
+    df <- simData()
+    mod <- fitModel()
+    
+    # Build dictionary of true parameters. Always include the intercept.
+    true_params <- list("(Intercept)" = input$sim_intercept)
+    if (input$sim_use_x) {
+      true_params[["x"]] <- input$sim_slope
+    }
+    if (input$sim_use_grp) {
+      # When using factors, R typically names the coefficients as "grpGroup B", etc.
+      true_params[["grpGroup B"]] <- input$sim_grpB
+      if (as.numeric(input$sim_grps) == 3) {
+        true_params[["grpGroup C"]] <- input$sim_grpC
+      }
+    }
+    
+    est <- coef(mod)
+    # Convert confint(mod) so it is a matrix even when there's only one row.
+    cis <- confint(mod)
+    if (is.null(dim(cis))) {
+      cis <- matrix(cis, nrow = 1)
+    }
+    
+    # Create data frame for plotting.
+    param_names <- names(est)
+    df_forest <- data.frame(
+      Parameter = param_names,
+      Estimated = unname(est),
+      Lower = cis[,1],
+      Upper = cis[,2],
+      True = sapply(param_names, function(p) {
+        if (p %in% names(true_params)) true_params[[p]] else NA
+      }),
+      stringsAsFactors = FALSE
+    )
+    
+    ggplot(df_forest, aes(x = Parameter, y = Estimated)) +
+      geom_pointrange(aes(ymin = Lower, ymax = Upper), color = "#1B9E77") +
+      geom_point(aes(y = True), color = "#D95F02", shape = 18, size = 3) +
+      coord_flip() +
+      labs(title = "Comparison of True vs Estimated Parameters",
+           y = "Coefficient Value") +
+      theme_minimal() +
+      theme(
+        panel.background = element_blank(),
+        plot.background = element_rect(fill = "#202123"),
+        plot.title = element_text(color = "white", size = 16),
+        axis.text = element_text(color = "white", size = 12),
+        axis.title = element_text(color = "white", size = 14),
+        legend.title = element_text(color = "white", size = 12),
+        legend.text = element_text(color = "white", size = 10),
+        panel.grid.major = element_line(color = "#444654"),
+        panel.grid.minor = element_line(color = "#444654")
+      )
+  })
+  
+  
+  output$predPlot <- renderPlot({
+    df <- simData()
+    mod <- fitModel()
+    
+    # Fitted predictions on the response scale (always correct).
+    df$predicted <- predict(mod, newdata = df, type = "response")
+    
+    # 1) Recompute the linear predictor (same as in simData).
+    true_lp <- rep(0, nrow(df))
+    if (input$sim_use_x) {
+      true_lp <- true_lp + input$sim_intercept + input$sim_slope * df$x
+    } else {
+      true_lp <- true_lp + input$sim_intercept
+    }
+    if (input$sim_use_grp) {
+      effect <- rep(0, nrow(df))
+      effect[df$grp == "Group B"] <- input$sim_grpB
+      if (as.numeric(input$sim_grps) == 3) {
+        effect[df$grp == "Group C"] <- input$sim_grpC
+      }
+      true_lp <- true_lp + effect
+    }
+    
+    # 2) For each distribution, convert linear_pred to the mean on the response scale
+    df$true <- switch(input$sim_dist,
+                      "Normal"   = true_lp,
+                      "Poisson"  = exp(true_lp),
+                      "Binomial" = input$sim_trials * plogis(true_lp),
+                      "Bernoulli"= plogis(true_lp)
+    )
+    
+    # Then plot as before.
+    # Example: if user has both x and grp, facet by grp:
+    if (input$sim_use_x & input$sim_use_grp) {
+      p <- ggplot(df, aes(x = x)) +
+        geom_point(aes(y = y), color = "grey") +
+        geom_line(aes(y = true, color = "Truth"), size = 1) +
+        geom_line(aes(y = predicted, color = "Estimated"), size = 1, linetype = "dashed") +
+        facet_wrap(~grp) +
+        labs(title = "True vs Predicted Relationships by Group",
+             x = "x", y = "y", color = "") +
+        scale_color_brewer(palette = "Dark2", breaks = c("Truth", "Estimated")) +
+        theme_minimal() +
+        theme(
+          panel.background = element_blank(),
+          plot.background = element_rect(fill = "#202123"),
+          strip.text = element_text(color = "white"),
+          axis.text = element_text(color = "white"),
+          axis.title = element_text(color = "white"),
+          plot.title = element_text(color = "white"),
+          legend.text = element_text(color = "white")
+        )
+    } else if (input$sim_use_x) {
+      # Slope-only model
+      p <- ggplot(df, aes(x = x)) +
+        geom_point(aes(y = y), color = "grey") +
+        geom_line(aes(y = true, color = "Truth"), size = 1) +
+        geom_line(aes(y = predicted, color = "Estimated"), size = 1, linetype = "dashed") +
+        labs(title = "True vs Predicted Relationship",
+             x = "x", y = "y", color = "") +
+        scale_color_brewer(palette = "Dark2", breaks = c("Truth", "Estimated")) +
+        theme_minimal() +
+        theme(
+          panel.background = element_blank(),
+          plot.background = element_rect(fill = "#202123"),
+          axis.text = element_text(color = "white"),
+          axis.title = element_text(color = "white"),
+          plot.title = element_text(color = "white"),
+          legend.text = element_text(color = "white")
+        )
+    } else if (input$sim_use_grp) {
+      # Categorical only
+      p <- ggplot(df, aes(x = grp)) +
+        geom_boxplot(aes(y = y), fill = "lightgrey") +
+        geom_point(aes(y = true, color = "Truth"), size = 3) +
+        geom_point(aes(y = predicted, color = "Estimated"), size = 3, shape = 17) +
+        labs(title = "True vs Predicted Group Means",
+             x = "Group", y = "y", color = "") +
+        scale_color_brewer(palette = "Dark2", breaks = c("Truth", "Estimated")) +
+        theme_minimal() +
+        theme(
+          panel.background = element_blank(),
+          plot.background = element_rect(fill = "#202123"),
+          axis.text = element_text(color = "white"),
+          axis.title = element_text(color = "white"),
+          plot.title = element_text(color = "white"),
+          legend.text = element_text(color = "white")
+        )
+    } else {
+      # Intercept-only
+      p <- ggplot(df, aes(x = 1:nrow(df), y = y)) +
+        geom_point(color = "grey") +
+        geom_line(aes(y = true, color = "Truth"), size = 1) +
+        geom_line(aes(y = predicted, color = "Estimated"), size = 1, linetype = "dashed") +
+        labs(title = "True vs Predicted (Intercept-only model)",
+             x = "Observation", y = "y", color = "") +
+        scale_color_brewer(palette = "Dark2", breaks = c("Truth", "Estimated")) +
+        theme_minimal() +
+        theme(
+          panel.background = element_blank(),
+          plot.background = element_rect(fill = "#202123"),
+          axis.text = element_text(color = "white"),
+          axis.title = element_text(color = "white"),
+          plot.title = element_text(color = "white"),
+          legend.text = element_text(color = "white")
+        )
+    }
+    
+    p
+  })
+  
+  output$paramSummary <- DT::renderDataTable({
+    mod <- fitModel()
+    est <- coef(mod)
+    
+    # True parameters based on simulation inputs
+    true_params <- list()
+    if (input$sim_use_x) {
+      true_params[["(Intercept)"]] <- input$sim_intercept
+      true_params[["x"]] <- input$sim_slope
+    } else {
+      true_params[["(Intercept)"]] <- input$sim_intercept
+    }
+    if (input$sim_use_grp) {
+      true_params[["grpB"]] <- input$sim_grpB
+      if (as.numeric(input$sim_grps) == 3) {
+        true_params[["grpC"]] <- input$sim_grpC
+      }
+    }
+    
+    df_forest <- data.frame(
+      Parameter = names(est),
+      Estimated = unname(est),
+      True = sapply(names(est), function(p) {
+        if (p %in% names(true_params)) true_params[[p]] else NA
+      }),
+      stringsAsFactors = FALSE
+    )
+    
+    DT::datatable(df_forest, 
+                  rownames = FALSE, 
+                  options = list(pageLength = 10)
+    ) |> 
+      DT::formatStyle(
+        columns = names(df_forest),
+        color = 'white'
+      )
+  })  
 }
 
 shinyApp(ui = ui, server = server)
