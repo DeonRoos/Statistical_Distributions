@@ -1,3 +1,4 @@
+# Library Loading -------------------------------------------------------------
 library(shiny)
 library(ggplot2)
 library(tweedie)
@@ -5,8 +6,10 @@ library(shinyWidgets)
 library(LaplacesDemon)
 library(extraDistr)
 library(shinydashboard)
+library(ggfortify)
+library(patchwork)
 
-# Default parameter values
+# Default Parameter Values -------------------------------------------------------------
 default_params <- list(
   Normal = list(mean = 0, sd = 1),
   Poisson = list(lambda = 3),
@@ -25,7 +28,7 @@ default_params <- list(
   `Negative Binomial` = list(size = 1, mu = 3)
 )
 
-# Default x-axis interval for visualization
+# Default X-Axis Interval -------------------------------------------------------------
 range_defaults <- list(
   Normal = list(xmin = -10, xmax = 10),
   Uniform = list(xmin = -5, xmax = 5),
@@ -44,10 +47,10 @@ range_defaults <- list(
   `Negative Binomial` = list(xmin = 0, xmax = 10)
 )
 
-# List of discrete distributions for which we want as.integer(x) in PMF
+# Discrete Distributions List -------------------------------------------------------------
 discrete_dists <- c("Poisson", "Binomial", "Bernoulli", "ZIP", "Negative Binomial")
 
-# Mapping from distribution names to density (or PMF) functions
+# Density Functions Mapping -------------------------------------------------------------
 dens_funcs <- list(
   Normal = function(x, p) dnorm(x, mean = p$mean, sd = p$sd),
   Poisson = function(x, p) dpois(as.integer(x), lambda = p$lambda),
@@ -66,7 +69,7 @@ dens_funcs <- list(
   `Negative Binomial` = function(x, p) dnbinom(as.integer(x), size = p$size, mu = p$mu)
 )
 
-# Mapping from distribution names to RNG functions
+# RNG Functions Mapping -------------------------------------------------------------
 rand_funcs <- list(
   Normal = function(n, p) rnorm(n, mean = p$mean, sd = p$sd),
   Poisson = function(n, p) rpois(n, lambda = p$lambda),
@@ -85,152 +88,199 @@ rand_funcs <- list(
   `Negative Binomial` = function(n, p) rnbinom(n, size = p$size, mu = p$mu)
 )
 
-# Helper: extract parameters for a given parameter set and distribution
+# getParams Function -------------------------------------------------------------
 getParams <- function(dist, i, input) {
   switch(dist,
-         Normal = list(mean = input[[paste0("mean_", i)]],
-                       sd = input[[paste0("sd_", i)]]),
+         Normal = list(
+           mean = input[[paste0("mean_", i)]],
+           sd = input[[paste0("sd_", i)]]
+         ),
          Poisson = list(lambda = input[[paste0("lambda_", i)]]),
-         Uniform = list(min = input[[paste0("min_", i)]],
-                        max = input[[paste0("max_", i)]]),
-         Beta = list(alpha = input[[paste0("alpha_", i)]],
-                     beta = input[[paste0("beta_", i)]]),
+         Uniform = list(
+           min = input[[paste0("min_", i)]],
+           max = input[[paste0("max_", i)]]
+         ),
+         Beta = list(
+           alpha = input[[paste0("alpha_", i)]],
+           beta = input[[paste0("beta_", i)]]
+         ),
          `Student's T` = list(df = input[[paste0("df_", i)]]),
          Exponential = list(rate = input[[paste0("rate_", i)]]),
-         Gamma = list(shape = input[[paste0("shape_", i)]],
-                      rate = input[[paste0("rate_", i)]]),
-         `Log-Normal` = list(meanlog = input[[paste0("meanlog_", i)]],
-                             sdlog = input[[paste0("sdlog_", i)]]),
+         Gamma = list(
+           shape = input[[paste0("shape_", i)]],
+           rate = input[[paste0("rate_", i)]]
+         ),
+         `Log-Normal` = list(
+           meanlog = input[[paste0("meanlog_", i)]],
+           sdlog = input[[paste0("sdlog_", i)]]
+         ),
          `Half-Cauchy` = list(scale = input[[paste0("scale_", i)]]),
-         Tweedie = list(p = input[[paste0("p_", i)]],
-                        mu = input[[paste0("mu_", i)]],
-                        phi = input[[paste0("phi_", i)]]),
-         Wald = list(mu = input[[paste0("mu_", i)]],
-                     lambda = input[[paste0("lambda_", i)]]),
-         Binomial = list(size = input[[paste0("size_", i)]],
-                         prob = input[[paste0("prob_", i)]]),
+         Tweedie = list(
+           p = input[[paste0("p_", i)]],
+           mu = input[[paste0("mu_", i)]],
+           phi = input[[paste0("phi_", i)]]
+         ),
+         Wald = list(
+           mu = input[[paste0("mu_", i)]],
+           lambda = input[[paste0("lambda_", i)]]
+         ),
+         Binomial = list(
+           size = input[[paste0("size_", i)]],
+           prob = input[[paste0("prob_", i)]]
+         ),
          Bernoulli = list(p = input[[paste0("p_", i)]]),
-         ZIP = list(lambda = input[[paste0("lambda_", i)]],
-                    pi = input[[paste0("pi_", i)]]),
-         `Negative Binomial` = list(size = input[[paste0("size_", i)]],
-                                    mu = input[[paste0("mu_", i)]])
+         ZIP = list(
+           lambda = input[[paste0("lambda_", i)]],
+           pi = input[[paste0("pi_", i)]]
+         ),
+         `Negative Binomial` = list(
+           size = input[[paste0("size_", i)]],
+           mu = input[[paste0("mu_", i)]]
+         )
   )
 }
 
+# paramInputsForDist Function -------------------------------------------------------------
 paramInputsForDist <- function(dist, i, defaults) {
   switch(dist,
          Normal = tagList(
            numericInput(paste0("mean_", i),
                         label = tags$span("Mean (μ):", title = "Average value of the distribution"),
-                        value = defaults$mean, step = 0.1),
+                        value = defaults$mean, step = 0.1
+           ),
            numericInput(paste0("sd_", i),
                         label = tags$span("Standard Deviation (σ):", title = "Measure of spread about the mean"),
-                        value = defaults$sd, step = 0.1)
+                        value = defaults$sd, step = 0.1
+           )
          ),
          Poisson = tagList(
            numericInput(paste0("lambda_", i),
                         label = tags$span("Lambda (λ):", title = "Average rate of events"),
-                        value = defaults$lambda, step = 1)
+                        value = defaults$lambda, step = 1
+           )
          ),
          Uniform = tagList(
            numericInput(paste0("min_", i),
                         label = tags$span("Minimum (a):", title = "Smallest possible value in the range"),
-                        value = defaults$min, step = 0.1),
+                        value = defaults$min, step = 0.1
+           ),
            numericInput(paste0("max_", i),
                         label = tags$span("Maximum (b):", title = "Largest possible value in the range"),
-                        value = defaults$max, step = 0.1)
+                        value = defaults$max, step = 0.1
+           )
          ),
          Beta = tagList(
            numericInput(paste0("alpha_", i),
                         label = tags$span("Shape α:", title = "Controls the left side of the distribution"),
-                        value = defaults$alpha, step = 0.1),
+                        value = defaults$alpha, step = 0.1
+           ),
            numericInput(paste0("beta_", i),
                         label = tags$span("Shape β:", title = "Controls the right side of the distribution"),
-                        value = defaults$beta, step = 0.1)
+                        value = defaults$beta, step = 0.1
+           )
          ),
          `Student's T` = tagList(
            numericInput(paste0("df_", i),
                         label = tags$span("Degrees of Freedom (ν):", title = "Lower degrees imply heavier tails"),
-                        value = defaults$df, step = 1)
+                        value = defaults$df, step = 1
+           )
          ),
          Exponential = tagList(
            numericInput(paste0("rate_", i),
                         label = tags$span("Rate (λ):", title = "Average number of events per time unit (for waiting times)"),
-                        value = defaults$rate, step = 0.1)
+                        value = defaults$rate, step = 0.1
+           )
          ),
          Gamma = tagList(
            numericInput(paste0("shape_", i),
                         label = tags$span("Shape (α):", title = "Controls the form of the distribution"),
-                        value = defaults$shape, step = 0.1),
+                        value = defaults$shape, step = 0.1
+           ),
            numericInput(paste0("rate_", i),
                         label = tags$span("Rate (λ):", title = "Inversely related to the scale; controls decay"),
-                        value = defaults$rate, step = 0.1)
+                        value = defaults$rate, step = 0.1
+           )
          ),
          `Log-Normal` = tagList(
            numericInput(paste0("meanlog_", i),
                         label = tags$span("Log-mean (μ):", title = "Mean of the logarithm of the data"),
-                        value = defaults$meanlog, step = 0.1),
+                        value = defaults$meanlog, step = 0.1
+           ),
            numericInput(paste0("sdlog_", i),
                         label = tags$span("Log-standard Deviation (σ):", title = "Spread of the logarithm of the data"),
-                        value = defaults$sdlog, step = 0.1)
+                        value = defaults$sdlog, step = 0.1
+           )
          ),
          `Half-Cauchy` = tagList(
            numericInput(paste0("scale_", i),
                         label = tags$span("Scale (α):", title = "Determines the spread of the distribution"),
-                        value = defaults$scale, step = 0.1)
+                        value = defaults$scale, step = 0.1
+           )
          ),
          Tweedie = tagList(
            numericInput(paste0("p_", i),
                         label = tags$span("Power (p):", title = "Determines the type of Tweedie distribution"),
-                        value = defaults$p, step = 0.1),
+                        value = defaults$p, step = 0.1
+           ),
            numericInput(paste0("mu_", i),
                         label = tags$span("Mean (μ):", title = "Average value of the distribution"),
-                        value = defaults$mu, step = 0.1),
+                        value = defaults$mu, step = 0.1
+           ),
            numericInput(paste0("phi_", i),
                         label = tags$span("Dispersion (φ):", title = "Variability of the data beyond the mean"),
-                        value = defaults$phi, step = 0.1)
+                        value = defaults$phi, step = 0.1
+           )
          ),
          Wald = tagList(
            numericInput(paste0("mu_", i),
                         label = tags$span("Mean (μ):", title = "Central tendency of the data"),
-                        value = defaults$mu, step = 0.1),
+                        value = defaults$mu, step = 0.1
+           ),
            numericInput(paste0("lambda_", i),
                         label = tags$span("Lambda (λ):", title = "Shape parameter controlling tail behavior"),
-                        value = defaults$lambda, step = 0.1)
+                        value = defaults$lambda, step = 0.1
+           )
          ),
          Binomial = tagList(
            numericInput(paste0("size_", i),
                         label = tags$span("Number of Trials (n):", title = "Total number of independent experiments"),
-                        value = defaults$size, step = 1),
+                        value = defaults$size, step = 1
+           ),
            numericInput(paste0("prob_", i),
                         label = tags$span("Success Probability (p):", title = "Probability of success on a single trial"),
-                        value = defaults$prob, min = 0, max = 1, step = 0.1)
+                        value = defaults$prob, min = 0, max = 1, step = 0.1
+           )
          ),
          Bernoulli = tagList(
            numericInput(paste0("p_", i),
                         label = tags$span("Probability (p):", title = "Probability of success in the trial"),
-                        value = defaults$p, min = 0, max = 1, step = 0.1)
+                        value = defaults$p, min = 0, max = 1, step = 0.1
+           )
          ),
          ZIP = tagList(
            numericInput(paste0("lambda_", i),
                         label = tags$span("Lambda (λ):", title = "Average rate for the Poisson component"),
-                        value = defaults$lambda, step = 0.1),
+                        value = defaults$lambda, step = 0.1
+           ),
            numericInput(paste0("pi_", i),
                         label = tags$span("Zero Inflation Probability (π):", title = "Probability that the value is an extra zero"),
-                        value = defaults$pi, min = 0, max = 1, step = 0.1)
+                        value = defaults$pi, min = 0, max = 1, step = 0.1
+           )
          ),
          `Negative Binomial` = tagList(
            numericInput(paste0("size_", i),
                         label = tags$span("Dispersion Parameter (n):", title = "Controls overdispersion; higher values yield less variance"),
-                        value = defaults$size, min = 0, step = 1),
+                        value = defaults$size, min = 0, step = 1
+           ),
            numericInput(paste0("mu_", i),
                         label = tags$span("Mean (μ):", title = "Average count value"),
-                        value = defaults$mu, min = 0, step = 0.1)
+                        value = defaults$mu, min = 0, step = 0.1
+           )
          )
   )
 }
 
-# UI definition
+# UI Definition -------------------------------------------------------------
 ui <- navbarPage(
   title = "Explore Statistical Distributions",
   tags$head(
@@ -254,8 +304,7 @@ ui <- navbarPage(
                style = "background: linear-gradient(#444654, #3F3D39); border-radius: 10px; border: 2px solid #00A68A; box-shadow: 0 0 10px 5px rgba(0,166,138,0.3);",
                pickerInput(
                  inputId = "distribution",
-                 label = tags$span("Select distribution:",
-                                   title = "Choose which statistical distribution to explore"),
+                 label = tags$span("Select distribution:", title = "Choose which statistical distribution to explore"),
                  choices = list(
                    "Continuous real" = c("Normal", sort(c("Uniform", "Beta", "Student's T", "Half-Cauchy"))),
                    "Continuous positive" = c("Exponential", "Tweedie", "Gamma", "Log-Normal", "Wald"),
@@ -265,61 +314,59 @@ ui <- navbarPage(
                ),
                tags$hr(style = "border-color: #00A68A;"),
                h4("X-axis interval for visualization"),
-               numericInput("xmin", 
-                            label = tags$span("Minimum x-value:",
-                                              title = "Specify the smallest x-value for the plots"),
-                            value = range_defaults[["Normal"]]$xmin, step = 0.5),
-               numericInput("xmax", 
-                            label = tags$span("Maximum x-value:",
-                                              title = "Specify the largest x-value for the plots"),
-                            value = range_defaults[["Normal"]]$xmax, step = 0.5),
-               numericInput("nobs", 
-                            label = tags$span("Number of random values:",
-                                              title = "Enter how many random samples to generate"),
-                            value = 100, min = 1, max = 5000, step = 25),
+               numericInput("xmin",
+                            label = tags$span("Minimum x-value:", title = "Specify the smallest x-value for the plots"),
+                            value = range_defaults[["Normal"]]$xmin, step = 0.5
+               ),
+               numericInput("xmax",
+                            label = tags$span("Maximum x-value:", title = "Specify the largest x-value for the plots"),
+                            value = range_defaults[["Normal"]]$xmax, step = 0.5
+               ),
+               numericInput("nobs",
+                            label = tags$span("Number of random values:", title = "Enter how many random samples to generate"),
+                            value = 100, min = 1, max = 5000, step = 25
+               ),
                tags$hr(style = "border-color: #00A68A;"),
                h4("Explore different parameter values"),
                fluidRow(
-                 column(6, actionButton("addSet", "Add Parameter Set", 
-                                        title = "Add a new set of parameters to generate a separate PDF and sample")),
-                 column(6, actionButton("removeSet", "Remove Parameter Set", 
-                                        title = "Remove the most recently added parameter set (minimum of 1)"))
+                 column(6, actionButton("addSet", "Add Parameter Set", title = "Add a new set of parameters")),
+                 column(6, actionButton("removeSet", "Remove Parameter Set", title = "Remove the most recently added set"))
                ),
                br(),
                uiOutput("setCountDisplay"),
                tags$hr(style = "border-color: #00A68A;"),
-               h4(tags$span("Distribution specific parameters",
-                            title = "Change the parameters for the selected distribution")),
+               h4(tags$span("Distribution specific parameters", title = "Change distribution parameters")),
                uiOutput("distributionParams"),
-               actionButton("resetDefaults", "Reset to Defaults", 
-                            title = "Revert all parameters to their default values")
+               actionButton("resetDefaults", "Reset to Defaults", title = "Revert all parameters to defaults")
              ),
              mainPanel(
                fluidRow(
-                 column(6,
-                        div(id = "myTextOutput", textOutput("distName")),
-                        plotOutput("densityPlot"),
-                        h6("Fig. 1: The PDF plotted using the actual density values."),
-                        br(),
-                        plotOutput("randomPlot"),
-                        h6("Fig. 2: Histogram of randomly generated values.")
+                 column(
+                   6,
+                   div(id = "myTextOutput", textOutput("distName")),
+                   plotOutput("densityPlot"),
+                   h6("Fig. 1: The PDF plotted using the actual density values."),
+                   br(),
+                   plotOutput("randomPlot"),
+                   h6("Fig. 2: Histogram of randomly generated values.")
                  ),
-                 column(6,
-                        br(), br(),
-                        uiOutput("distributionText"),
-                        br(),
-                        h6("Notation:"),
-                        uiOutput("distributionNote"),
-                        h6("PDF/PMF:"),
-                        uiOutput("distributionPDF"),
-                        br(),
-                        tags$hr(style = "border-color: #00A68A;"),
-                        h4("Examples from this distribution"),
-                        textOutput("distributionEG"),
-                        br(),
-                        tags$hr(style = "border-color: #00A68A;"),
-                        p("This app was created by Deon Roos. The code is available on GitHub:"),
-                        tags$a(href = "https://github.com/DeonRoos/Statistical_Distributions", "GitHub Repo")
+                 column(
+                   6,
+                   br(), br(),
+                   uiOutput("distributionText"),
+                   br(),
+                   h6("Notation:"),
+                   uiOutput("distributionNote"),
+                   h6("PDF/PMF:"),
+                   uiOutput("distributionPDF"),
+                   br(),
+                   tags$hr(style = "border-color: #00A68A;"),
+                   h4("Examples from this distribution"),
+                   textOutput("distributionEG"),
+                   br(),
+                   tags$hr(style = "border-color: #00A68A;"),
+                   p("This app was created by Deon Roos. The code is available on GitHub:"),
+                   tags$a(href = "https://github.com/DeonRoos/Statistical_Distributions", "GitHub Repo")
                  )
                )
              )
@@ -332,8 +379,7 @@ ui <- navbarPage(
                style = "background: linear-gradient(#444654, #3F3D39); border-radius: 10px; border: 2px solid #00A68A; box-shadow: 0 0 10px 5px rgba(0,166,138,0.3);",
                pickerInput(
                  inputId = "selectedDistributions",
-                 label = tags$span("Select multiple distributions:",
-                                   title = "Choose one or more distributions for comparison"),
+                 label = tags$span("Select multiple distributions:", title = "Choose distributions for comparison"),
                  choices = list(
                    "Continuous real" = c("Normal", sort(c("Uniform", "Beta", "Student's T", "Half-Cauchy"))),
                    "Continuous positive" = c("Exponential", "Tweedie", "Gamma", "Log-Normal", "Wald"),
@@ -344,14 +390,14 @@ ui <- navbarPage(
                  options = list(`live-search` = TRUE)
                ),
                h4("X-axis interval for visualization"),
-               numericInput("xminmulti", 
-                            label = tags$span("Minimum x-value:",
-                                              title = "Specify the smallest x-value for comparison plots"),
-                            value = -10, step = 0.5),
-               numericInput("xmaxmulti", 
-                            label = tags$span("Maximum x-value:",
-                                              title = "Specify the largest x-value for comparison plots"),
-                            value = 10, step = 0.5),
+               numericInput("xminmulti",
+                            label = tags$span("Minimum x-value:", title = "Smallest x-value for comparison plots"),
+                            value = -10, step = 0.5
+               ),
+               numericInput("xmaxmulti",
+                            label = tags$span("Maximum x-value:", title = "Largest x-value for comparison plots"),
+                            value = 10, step = 0.5
+               ),
                uiOutput("paramInputs")
              ),
              mainPanel(
@@ -364,44 +410,38 @@ ui <- navbarPage(
              )
            )
   ),
-
-  ########
-  tabPanel("Modelling", icon = icon("flask"),
+  tabPanel("Modelling",
+           icon = icon("flask"),
            sidebarLayout(
              sidebarPanel(
-               style = "background: linear-gradient(#444654, #3F3D39);
-               border-radius: 10px;
-               border: 2px solid #00A68A;
-               box-shadow: 0 0 10px 5px rgba(0,166,138,0.3);",
-               
-               # Simulation distribution selector
+               style = "background: linear-gradient(#444654, #3F3D39); border-radius: 10px; border: 2px solid #00A68A; box-shadow: 0 0 10px 5px rgba(0,166,138,0.3);",
+               # Simulation Distribution Selector -------------------------------------------------------------
                selectInput("sim_dist", "Simulation Distribution:",
                            choices = c("Normal", "Poisson", "Binomial", "Bernoulli"),
-                           selected = "Normal"),
-               
-               # If Binomial is chosen, specify number of trials
+                           selected = "Normal"
+               ),
+               # Conditional: Number of Trials for Binomial -------------------------------------------------------------
                conditionalPanel(
                  condition = "input.sim_dist == 'Binomial'",
                  numericInput("sim_trials", "Number of trials:", value = 10, min = 1)
                ),
-               
                numericInput("sim_N", "Sample size (N):", value = 100, min = 10),
                conditionalPanel(
                  condition = "input.sim_dist == 'Normal'",
                  numericInput("sim_sd", "Error standard deviation:", value = 1, min = 0, step = 0.1)
                ),
-               
-               # Intercept is now always active
+               h4("Data Generating Process"),
+               uiOutput("dgp_eq"),
+               tags$hr(style = "border-color: #00A68A;"),
+               # Intercept Input -------------------------------------------------------------
                numericInput("sim_intercept", "Intercept:", value = 0, step = 0.1),
-               
-               # Continuous predictor: user can choose whether to include x; slope only appears if x is included
+               # Continuous Predictor -------------------------------------------------------------
                checkboxInput("sim_use_x", "Include continuous predictor (x)", value = TRUE),
                conditionalPanel(
                  condition = "input.sim_use_x == true",
                  numericInput("sim_slope", "Slope:", value = 1, step = 0.1)
                ),
-               
-               # Categorical predictor block
+               # Categorical Predictor -------------------------------------------------------------
                checkboxInput("sim_use_grp", "Include categorical predictor (grp)", value = FALSE),
                conditionalPanel(
                  condition = "input.sim_use_grp == true",
@@ -412,56 +452,53 @@ ui <- navbarPage(
                    numericInput("sim_grpC", "Effect for Group C:", value = 2, step = 0.1)
                  )
                ),
-               
-               # Model family for fitting the simulated data
+               # Unobserved Effects -------------------------------------------------------------
+               checkboxInput("sim_unobs_linear", "Include unobserved linear effect", value = FALSE),
+               checkboxInput("sim_unobs_cat", "Include unobserved categorical effect", value = FALSE),
+               checkboxInput("sim_unobs_nonlinear", "Include unobserved non-linear effect", value = FALSE),
+               # Model Family for Fitting -------------------------------------------------------------
                selectInput("mod_family", "Model Family for Fitting:",
                            choices = c("Normal", "Poisson", "Binomial", "Bernoulli"),
-                           selected = "Normal")
+                           selected = "Normal"
+               ),
+               h4("Model Equation"),
+               uiOutput("model_eq")
              ),
              mainPanel(
                tabsetPanel(
                  tabPanel("Predicted Relationship", plotOutput("predPlot")),
                  tabPanel("Forest Plot", plotOutput("forestPlot")),
                  tabPanel("Parameter Comparison",
-                          # Inject custom CSS that overrides DataTables defaults
                           tags$style(HTML("
-    /* Make text in search/filter, length, info, and pagination controls white */
-    .dataTables_wrapper .dataTables_info,
-    .dataTables_wrapper .dataTables_length label,
-    .dataTables_wrapper .dataTables_filter label,
-    .dataTables_wrapper .dataTables_paginate,
-    .dataTables_wrapper .dataTables_paginate .paginate_button {
-      color: white !important;
-    }
-
-    /* Make table header text and sorting icons white */
-    table.dataTable thead .sorting,
-    table.dataTable thead .sorting_asc,
-    table.dataTable thead .sorting_desc {
-      color: white !important;
-    }
-
-    /* Make cell borders dark and text white in header and body */
-    table.dataTable td,
-    table.dataTable th {
-      border-color: #444654 !important;
-      color: white !important;
-    }
-
-    /* Style pagination buttons to match your dark theme */
-    .dataTables_wrapper .dataTables_paginate .paginate_button {
-      background-color: #444654 !important;
-      color: white !important;
-    }
-  ")),
-  
-  DT::dataTableOutput("paramSummary")
-                 )
-  )
+              .dataTables_wrapper .dataTables_info,
+              .dataTables_wrapper .dataTables_length label,
+              .dataTables_wrapper .dataTables_filter label,
+              .dataTables_wrapper .dataTables_paginate,
+              .dataTables_wrapper .dataTables_paginate .paginate_button {
+                color: white !important;
+              }
+              table.dataTable thead .sorting,
+              table.dataTable thead .sorting_asc,
+              table.dataTable thead .sorting_desc {
+                color: white !important;
+              }
+              table.dataTable td,
+              table.dataTable th {
+                border-color: #444654 !important;
+                color: white !important;
+              }
+              .dataTables_wrapper .dataTables_paginate .paginate_button {
+                background-color: #444654 !important;
+                color: white !important;
+              }
+            ")),
+            DT::dataTableOutput("paramSummary")
+                 ),
+            tabPanel("Diagnostics", plotOutput("diagnosticsPlot"))
+               )
              )
            )
   ),
-  #######
   tabPanel("About",
            icon = icon("info-circle"),
            h2("App Guidance"),
@@ -475,27 +512,30 @@ ui <- navbarPage(
            tags$a(href = "https://github.com/DeonRoos/Statistical_Distributions", "GitHub Repo")
   )
 )
-# Server logic
+
+# Server Logic -------------------------------------------------------------
 server <- function(input, output, session) {
   
-  # Reactive value for number of parameter sets (min 1, max 10)
+  # Parameter Set Counter -------------------------------------------------------------
   parameterSetCount <- reactiveVal(1)
   
   observeEvent(input$addSet, {
-    if (parameterSetCount() < 10)
+    if (parameterSetCount() < 10) {
       parameterSetCount(parameterSetCount() + 1)
+    }
   })
   
   observeEvent(input$removeSet, {
-    if (parameterSetCount() > 1)
+    if (parameterSetCount() > 1) {
       parameterSetCount(parameterSetCount() - 1)
+    }
   })
   
   output$setCountDisplay <- renderUI({
     tags$p(strong("Current number of Parameter Sets:"), parameterSetCount())
   })
   
-  # Generate distribution-specific parameter inputs for the Explore tab
+  # Explore: Distribution Parameter Inputs -------------------------------------------------------------
   output$distributionParams <- renderUI({
     dist <- input$distribution
     defaults <- default_params[[dist]]
@@ -508,6 +548,7 @@ server <- function(input, output, session) {
     }))
   })
   
+  # Explore: Density Plot -------------------------------------------------------------
   output$densityPlot <- renderPlot({
     dist <- input$distribution
     xmin <- input$xmin
@@ -516,12 +557,10 @@ server <- function(input, output, session) {
     all_dfs <- lapply(seq_len(count), function(i) {
       p <- getParams(dist, i, input)
       x <- if (dist %in% discrete_dists) {
-        # Create a sequence with 100 points between integer-min and integer-max
         seq(ceiling(xmin), floor(xmax), length.out = 100)
       } else {
         seq(xmin, xmax, length.out = 100)
       }
-      # For discrete distributions, call density function with as.integer(x)
       dens <- if (dist %in% discrete_dists) {
         dens_funcs[[dist]](as.integer(x), p)
       } else {
@@ -549,12 +588,12 @@ server <- function(input, output, session) {
       )
   })
   
-  
+  # Explore: Distribution Name -------------------------------------------------------------
   output$distName <- renderText({
     paste("The", input$distribution, "distribution")
   })
   
-  # Generate and render the random values histogram
+  # Explore: Random Values Histogram -------------------------------------------------------------
   output$randomPlot <- renderPlot({
     dist <- input$distribution
     nobs <- input$nobs
@@ -569,25 +608,27 @@ server <- function(input, output, session) {
     comb <- rep(seq_len(count), each = nobs)
     df <- data.frame(value = samples, Set = factor(comb))
     ggplot(df, aes(x = value, fill = Set, color = Set)) +
-      geom_histogram(position = "dodge", binwidth = if(dist %in% discrete_dists) 1 else NULL, alpha = 0.3) +
+      geom_histogram(position = "dodge", binwidth = if (dist %in% discrete_dists) 1 else NULL, alpha = 0.3) +
       scale_x_continuous(limits = c(xmin, xmax)) +
       xlab("Realised values (x)") +
       ylab("Frequency") +
       scale_color_brewer(palette = "Set2") +
       scale_fill_brewer(palette = "Set2") +
       theme_minimal() +
-      theme(panel.background = element_blank(),
-            plot.background = element_rect(fill = "#202123"),
-            plot.title = element_text(color = "white", size = 16),
-            axis.text = element_text(color = "white", size = 12),
-            axis.title = element_text(color = "white", size = 14),
-            legend.title = element_text(color = "white", size = 12),
-            legend.text = element_text(color = "white", size = 10),
-            panel.grid.major = element_line(color = "#444654"),
-            panel.grid.minor = element_line(color = "#444654"))
+      theme(
+        panel.background = element_blank(),
+        plot.background = element_rect(fill = "#202123"),
+        plot.title = element_text(color = "white", size = 16),
+        axis.text = element_text(color = "white", size = 12),
+        axis.title = element_text(color = "white", size = 14),
+        legend.title = element_text(color = "white", size = 12),
+        legend.text = element_text(color = "white", size = 10),
+        panel.grid.major = element_line(color = "#444654"),
+        panel.grid.minor = element_line(color = "#444654")
+      )
   })
   
-  # Update x-axis interval when distribution is changed
+  # Explore: Update X-Axis Interval on Distribution Change -------------------------------------------------------------
   observeEvent(input$distribution, {
     dist <- input$distribution
     rd <- range_defaults[[dist]]
@@ -595,7 +636,7 @@ server <- function(input, output, session) {
     updateNumericInput(session, "xmax", value = rd$xmax)
   })
   
-  # Reset parameters to defaults for the Explore tab
+  # Explore: Reset Default Parameters -------------------------------------------------------------
   observeEvent(input$resetDefaults, {
     dist <- input$distribution
     defaults <- default_params[[dist]]
@@ -603,7 +644,7 @@ server <- function(input, output, session) {
     updateNumericInput(session, "xmin", value = rd$xmin)
     updateNumericInput(session, "xmax", value = rd$xmax)
     count <- parameterSetCount()
-    for(i in seq_len(count)) {
+    for (i in seq_len(count)) {
       switch(dist,
              Normal = {
                updateNumericInput(session, paste0("mean_", i), value = defaults$mean)
@@ -665,7 +706,7 @@ server <- function(input, output, session) {
     }
   })
   
-  # Render rich HTML brief summary for each distribution
+  # Explore: Distribution Description -------------------------------------------------------------
   output$distributionText <- renderUI({
     distribution <- input$distribution
     summary_text <- switch(distribution,
@@ -674,101 +715,101 @@ server <- function(input, output, session) {
         The Normal distribution is one of the most fundamental probability distributions in statistics. It is defined by a mathematical formula that approximates a wide variety of datasets—ranging from human traits (like height and weight) to test scores. Unlike a uniform distribution, which treats all outcomes equally, the Normal follows a distinct “bell curve” pattern.<br><br>
         <b>Key Characteristics:</b>
         <ul>
-          <li><b>Bell-Shaped and Symmetric:</b> Values tend to cluster around the mean, forming a symmetric curve. As you move away from the mean, values become increasingly rare.</li>
-          <li><b>Controlled by the Standard Deviation:</b> The spread is determined by the standard deviation. Smaller values yield a steep, narrow curve; larger ones produce a flat, wide curve.</li>
-          <li><b>Range:</b> Covers all real numbers from negative infinity to positive infinity.</li>
+          <li><b>Bell-Shaped and Symmetric:</b> Values cluster around the mean with a symmetric decline on either side.</li>
+          <li><b>Standard Deviation Controls Spread:</b> A smaller standard deviation yields a narrow, steep curve; a larger one, a wider, flatter curve.</li>
+          <li><b>Range:</b> It covers all real numbers, from negative infinity to positive infinity.</li>
         </ul>
-        <b>When to Consider:</b> For continuous data that cluster around a central value and can extend in both directions.
+        <b>When to Consider:</b> For continuous data that cluster around a central value and extend in both directions.
       "),
       "Poisson" = HTML("
         <b>The Poisson Distribution:</b><br>
-        The Poisson distribution is used to model the number of times an event occurs in a fixed interval when events occur independently at a constant rate.<br><br>
+        The Poisson distribution models the number of times an event occurs in a fixed interval when events occur independently at a constant rate.<br><br>
         <b>Key Characteristics:</b>
         <ul>
-          <li><b>Discrete Count Data:</b> Outputs are non-negative integers.</li>
-          <li><b>Mean Equals Variance:</b> The average rate of events is equal to the variance.</li>
-          <li><b>Unbounded Above:</b> Counts start at zero but can extend indefinitely.</li>
+          <li><b>Discrete Count Data:</b> Outputs non-negative integers.</li>
+          <li><b>Mean Equals Variance:</b> A unique property where the average rate equals the variance.</li>
+          <li><b>Unbounded Above:</b> Although counts start at zero, there is no theoretical upper limit.</li>
         </ul>
-        <b>When to Consider:</b> Ideal for modeling counts of rare events, such as emails per hour or customer arrivals.
+        <b>When to Consider:</b> For modeling counts of rare events, like customer arrivals or emails per hour.
       "),
       "Uniform" = HTML("
         <b>The Uniform Distribution:</b><br>
-        The Uniform distribution gives every value in a specified interval an equal chance of occurring, resulting in a flat, rectangular shape.<br><br>
+        The Uniform distribution gives all outcomes within a specified interval equal probability, resulting in a flat, rectangular shape.<br><br>
         <b>Key Characteristics:</b>
         <ul>
-          <li><b>Equal Likelihood:</b> All outcomes within the range are equally probable.</li>
-          <li><b>Constant Density:</b> The probability density is uniform across the interval.</li>
-          <li><b>Defined Range:</b> Only values within two endpoints are possible.</li>
+          <li><b>Equal Likelihood:</b> Every value within the range is equally likely.</li>
+          <li><b>Constant Density:</b> The probability density remains unchanged across the interval.</li>
+          <li><b>Defined Interval:</b> Only values between two endpoints are possible.</li>
         </ul>
-        <b>When to Consider:</b> When there is no reason to favor any outcome over another within a given range.
+        <b>When to Consider:</b> When there is no reason to favor one outcome over another within a fixed range.
       "),
       "Beta" = HTML("
         <b>The Beta Distribution:</b><br>
-        The Beta distribution is defined on the interval [0, 1] and is excellent for modeling probabilities or proportions.<br><br>
+        The Beta distribution is defined on the interval [0, 1] and is ideal for modeling proportions or probabilities.<br><br>
         <b>Key Characteristics:</b>
         <ul>
-          <li><b>Bounded:</b> Values lie strictly between 0 and 1.</li>
-          <li><b>Flexible Shape:</b> Two parameters allow the distribution to take on various forms (e.g., U-shaped, uniform, bell-shaped).</li>
+          <li><b>Bounded:</b> All outcomes lie between 0 and 1.</li>
+          <li><b>Flexible Shape:</b> Two parameters allow the distribution to take on many shapes (e.g., U-shaped, uniform, bell-shaped).</li>
         </ul>
         <b>When to Consider:</b> Ideal for modeling conversion rates, proportions, or any metric naturally restricted to [0, 1].
       "),
       "Student's T" = HTML("
         <b>The Student's T Distribution:</b><br>
-        The Student's T distribution is similar to the Normal distribution but has heavier tails, making it crucial when sample sizes are small or variance is uncertain.<br><br>
+        The Student's T distribution resembles the Normal distribution but with heavier tails, making it valuable when sample sizes are small or when the population variance is uncertain.<br><br>
         <b>Key Characteristics:</b>
         <ul>
-          <li><b>Heavy Tails:</b> Increases the likelihood of extreme values compared to the Normal distribution.</li>
-          <li><b>Degrees of Freedom:</b> As sample size increases, it approaches the Normal distribution.</li>
+          <li><b>Heavy Tails:</b> More likelihood for extreme values than the Normal distribution.</li>
+          <li><b>Degrees of Freedom:</b> As sample size increases, it converges to the Normal distribution.</li>
         </ul>
-        <b>When to Consider:</b> Useful for small samples or when there is uncertainty about the population variance.
+        <b>When to Consider:</b> For small samples or when the population variance is unknown.
       "),
       "Binomial" = HTML("
         <b>The Binomial Distribution:</b><br>
-        The Binomial distribution models the number of successes in a fixed number of independent trials with the same probability of success.<br><br>
+        The Binomial distribution models the number of successes in a fixed number of independent, binary (success/failure) experiments.<br><br>
         <b>Key Characteristics:</b>
         <ul>
           <li><b>Discrete and Limited:</b> Generates integer outcomes from 0 up to the number of trials.</li>
           <li><b>Fixed Number of Trials:</b> The total number of experiments is predetermined.</li>
         </ul>
-        <b>When to Consider:</b> For binary (yes/no) outcomes in a fixed number of independent trials.
+        <b>When to Consider:</b> For binary outcomes (e.g., heads/tails) in a fixed number of trials.
       "),
       "Exponential" = HTML("
         <b>The Exponential Distribution:</b><br>
-        The Exponential distribution models the time between successive random events in a continuous, memoryless process.<br><br>
+        The Exponential distribution models the time between successive random events in a memoryless process.<br><br>
         <b>Key Characteristics:</b>
         <ul>
-          <li><b>Memoryless:</b> Future event probabilities do not depend on past events.</li>
-          <li><b>Continuous &amp; Non-negative:</b> Defined for x ≥ 0.</li>
+          <li><b>Memoryless Property:</b> The probability of an event occurring in the future is independent of the past.</li>
+          <li><b>Continuous and Non-negative:</b> Defined only for x ≥ 0.</li>
         </ul>
         <b>When to Consider:</b> For modeling waiting times or durations until an event occurs.
       "),
       "Gamma" = HTML("
         <b>The Gamma Distribution:</b><br>
-        The Gamma distribution generalizes the Exponential to model the waiting time until multiple events occur, defined by shape and rate parameters.<br><br>
+        The Gamma distribution generalizes the Exponential by modeling the waiting time until multiple events occur, defined by shape and rate parameters.<br><br>
         <b>Key Characteristics:</b>
         <ul>
-          <li><b>Continuous &amp; Non-negative:</b> Suitable for modeling time or duration.</li>
+          <li><b>Continuous &amp; Non-negative:</b> Suitable for time or duration measurements.</li>
           <li><b>Flexible Shape:</b> Two parameters allow for various forms of skewed data.</li>
         </ul>
         <b>When to Consider:</b> When the time until an event depends on the occurrence of several events.
       "),
       "Log-Normal" = HTML("
         <b>The Log-Normal Distribution:</b><br>
-        The Log-Normal distribution applies when the logarithm of the data follows a Normal distribution. It is ideal for strictly positive, skewed data.<br><br>
+        The Log-Normal distribution applies when the logarithm of the data follows a Normal distribution. It is useful for strictly positive, right-skewed data.<br><br>
         <b>Key Characteristics:</b>
         <ul>
-          <li><b>Positively Skewed:</b> Most values are low with a long tail to the right.</li>
-          <li><b>Multiplicative Processes:</b> Often emerges from the product of many independent factors.</li>
+          <li><b>Positively Skewed:</b> Most values are small with a long tail on the right.</li>
+          <li><b>Multiplicative Effects:</b> Often results from the product of many independent factors.</li>
         </ul>
-        <b>When to Consider:</b> For phenomena such as incomes, stock prices, or biological measurements that cannot be negative.
+        <b>When to Consider:</b> For variables such as incomes, stock prices, or biological measurements that cannot be negative.
       "),
       "Half-Cauchy" = HTML("
         <b>The Half-Cauchy Distribution:</b><br>
-        The Half-Cauchy distribution is defined only for positive values and is known for its heavy tails. It is frequently used as a prior for scale parameters in Bayesian analysis.<br><br>
+        The Half-Cauchy distribution is defined only for positive values and has heavy tails, making it popular as a prior for scale parameters in Bayesian analysis.<br><br>
         <b>Key Characteristics:</b>
         <ul>
-          <li><b>Heavy Tails:</b> Can accommodate occasional extreme values.</li>
-          <li><b>Restricted to Positive Values:</b> Suitable only for non-negative measurements.</li>
+          <li><b>Heavy Tails:</b> Can accommodate occasional extreme observations.</li>
+          <li><b>Restricted to Positive Values:</b> Suitable only for non-negative data.</li>
         </ul>
         <b>When to Consider:</b> When modeling a scale parameter where data may have outliers.
       "),
@@ -777,56 +818,56 @@ server <- function(input, output, session) {
         The Tweedie distribution is a flexible family that combines elements of both discrete and continuous models, particularly useful when data have many zeros alongside positive values.<br><br>
         <b>Key Characteristics:</b>
         <ul>
-          <li><b>Compound Nature:</b> Blends features of Poisson (for zero counts) and Gamma (for positive values).</li>
+          <li><b>Compound Structure:</b> Blends features of Poisson (for zeros/counts) and Gamma (for continuous values).</li>
           <li><b>Handles Excess Zeros:</b> Specifically designed for data with a surplus of zeros.</li>
         </ul>
         <b>When to Consider:</b> For modeling data like insurance claims or rainfall intensities where zeros are common.
       "),
       "Wald" = HTML("
         <b>The Wald Distribution (Inverse Gaussian):</b><br>
-        The Wald distribution (or Inverse Gaussian) models positive, skewed data, often used in reliability and response time analysis.<br><br>
+        The Wald distribution, also known as the Inverse Gaussian, models positive, skewed data and is often used for response times or failure times.<br><br>
         <b>Key Characteristics:</b>
         <ul>
           <li><b>Positively Skewed:</b> Emphasizes lower values with a long right tail.</li>
-          <li><b>Time-to-Event Focus:</b> Suitable for modeling the duration until an event occurs.</li>
+          <li><b>Time-to-Event Modeling:</b> Suitable for data representing durations until an event occurs.</li>
         </ul>
-        <b>When to Consider:</b> When dealing with strictly positive data that exhibit a strong skew, such as reaction times.
+        <b>When to Consider:</b> For strictly positive, skewed data such as reaction times.
       "),
       "ZIP" = HTML("
         <b>The Zero-Inflated Poisson (ZIP) Distribution:</b><br>
-        The ZIP distribution extends the Poisson to account for an excess number of zero counts by combining a point mass at zero with a standard Poisson for positive counts.<br><br>
+        The ZIP distribution extends the Poisson by incorporating a mass at zero to handle excess zero counts. It is used for modeling count data with more zeros than expected by a standard Poisson process.<br><br>
         <b>Key Characteristics:</b>
         <ul>
-          <li><b>Excess Zeros:</b> Explicitly models a greater probability for zero outcomes.</li>
-          <li><b>Discrete:</b> Suitable for count data.</li>
+          <li><b>Excess Zeros:</b> Explicitly models a higher chance for zero outcomes.</li>
+          <li><b>Discrete Counts:</b> Results are non-negative integers.</li>
         </ul>
-        <b>When to Consider:</b> For count data with more zeros than a standard Poisson model would predict.
+        <b>When to Consider:</b> For count data with a surplus of zeros, such as defect counts or species counts.
       "),
       "Bernoulli" = HTML("
         <b>The Bernoulli Distribution:</b><br>
-        The Bernoulli distribution represents the simplest binary experiment with two outcomes: success (1) or failure (0).<br><br>
+        The Bernoulli distribution models a single binary trial with two possible outcomes—success (1) or failure (0). It is the most basic discrete probability model.<br><br>
         <b>Key Characteristics:</b>
         <ul>
-          <li><b>Binary Outcome:</b> Only two possible results.</li>
-          <li><b>Foundational:</b> Forms the basis for more complex models like the Binomial distribution.</li>
+          <li><b>Binary Outcome:</b> Only two possible results (0 or 1).</li>
+          <li><b>Foundational Model:</b> Serves as the basis for more complex models such as the Binomial distribution.</li>
         </ul>
-        <b>When to Consider:</b> For modeling the outcome of a single yes/no or success/failure experiment.
+        <b>When to Consider:</b> For modeling the outcome of a single yes/no experiment.
       "),
       "Negative Binomial" = HTML("
         <b>The Negative Binomial Distribution:</b><br>
-        The Negative Binomial distribution is used for overdispersed count data, where the variance exceeds the mean. It models the number of failures before a predetermined number of successes occur.<br><br>
+        The Negative Binomial distribution models overdispersed count data—that is, data whose variance exceeds the mean. It represents the number of failures before achieving a predetermined number of successes.<br><br>
         <b>Key Characteristics:</b>
         <ul>
-          <li><b>Overdispersion:</b> Captures extra variability not explained by a Poisson model.</li>
-          <li><b>Discrete:</b> Produces integer outcomes with flexible variability.</li>
+          <li><b>Overdispersion:</b> More flexible than the Poisson when data exhibit greater variability.</li>
+          <li><b>Discrete Outcomes:</b> Produces integer counts with additional spread.</li>
         </ul>
-        <b>When to Consider:</b> For count data that exhibit more variability than a Poisson model can capture.
+        <b>When to Consider:</b> For count data that are more variable than what a Poisson model predicts.
       ")
     )
     summary_text
   })
   
-  # Render distribution notation
+  # Explore: Distribution Notation -------------------------------------------------------------
   output$distributionNote <- renderUI({
     distribution <- input$distribution
     note <- switch(distribution,
@@ -852,7 +893,7 @@ server <- function(input, output, session) {
     note |> tagList()
   })
   
-  # Render PDF/PMF description
+  # Explore: PDF/PMF Description -------------------------------------------------------------
   output$distributionPDF <- renderUI({
     distribution <- input$distribution
     note <- switch(distribution,
@@ -875,6 +916,7 @@ server <- function(input, output, session) {
     note |> tagList()
   })
   
+  # Explore: Distribution Examples -------------------------------------------------------------
   output$distributionEG <- renderText({
     distribution <- input$distribution
     text <- switch(distribution,
@@ -897,7 +939,7 @@ server <- function(input, output, session) {
     text
   })
   
-  # Compare tab: revert to original parameter inputs (one per distribution selected)
+  # Compare: Parameter Inputs for Selected Distributions -------------------------------------------------------------
   output$paramInputs <- renderUI({
     selected_distributions <- input$selectedDistributions
     param_inputs <- lapply(selected_distributions, function(dist) {
@@ -914,7 +956,7 @@ server <- function(input, output, session) {
     do.call(tagList, param_inputs)
   })
   
-  # Compare tab: density plot
+  # Compare: Multi-distribution Density Plot -------------------------------------------------------------
   output$densityPlotMulti <- renderPlot({
     selected_distributions <- input$selectedDistributions
     if (is.null(selected_distributions) || length(selected_distributions) == 0) {
@@ -924,13 +966,10 @@ server <- function(input, output, session) {
     for (dist in selected_distributions) {
       params <- default_params[[dist]]
       param_values <- reactiveValuesToList(input)
-      # extract parameter inputs that end with the distribution name
       param_values <- param_values[grep(paste0(dist, "$"), names(param_values))]
-      
       xmin <- input$xminmulti
       xmax <- input$xmaxmulti
       x <- seq(xmin, xmax, length.out = 100)
-      
       density_out <- switch(dist,
                             "Normal" = {
                               if (!is.null(param_values$mean) && !is.null(param_values$sd)) {
@@ -1038,13 +1077,11 @@ server <- function(input, output, session) {
                               }
                             }
       )
-      
       df <- data.frame(x = x, density = density_out, distribution = dist, stringsAsFactors = FALSE)
       df$density <- df$density / max(df$density, na.rm = TRUE)
       df_density <- rbind(df_density, df)
     }
     df_density <- df_density[-1, ]
-    
     ggplot(df_density, aes(x = x, y = density, color = distribution, group = as.factor(distribution))) +
       geom_line(size = 1) +
       xlab("Possible values (x)") +
@@ -1065,6 +1102,7 @@ server <- function(input, output, session) {
       )
   })
   
+  # Duplicate: setCountDisplay and distName (if needed by Compare) -------------------------------------------------------------
   output$setCountDisplay <- renderUI({
     tags$p(strong("Current number of Parameter Sets:"), parameterSetCount())
   })
@@ -1073,6 +1111,7 @@ server <- function(input, output, session) {
     paste("The", input$distribution, "distribution")
   })
   
+  # Duplicate: Distribution Description, Notation, PDF, and Examples (if present) -------------------------------------------------------------
   output$distributionText <- renderUI({
     distribution <- input$distribution
     summary_text <- switch(distribution,
@@ -1121,10 +1160,10 @@ server <- function(input, output, session) {
       "),
       "Student's T" = HTML("
         <b>The Student's T Distribution:</b><br>
-        The Student's T distribution resembles the Normal distribution but with heavier tails, making it valuable when sample sizes are small or when variance is uncertain.<br><br>
+        The Student's T distribution resembles the Normal distribution but with heavier tails, making it valuable when sample sizes are small or when the population variance is uncertain.<br><br>
         <b>Key Characteristics:</b>
         <ul>
-          <li><b>Heavier Tails:</b> More likelihood for extreme values than the Normal distribution.</li>
+          <li><b>Heavy Tails:</b> More likelihood for extreme values than the Normal distribution.</li>
           <li><b>Degrees of Freedom:</b> As sample size increases, it converges to the Normal distribution.</li>
         </ul>
         <b>When to Consider:</b> For small samples or when the population variance is unknown.
@@ -1167,7 +1206,7 @@ server <- function(input, output, session) {
           <li><b>Positively Skewed:</b> Most values are small with a long tail on the right.</li>
           <li><b>Multiplicative Effects:</b> Often results from the product of many independent factors.</li>
         </ul>
-        <b>When to Consider:</b> For variables such as incomes, stock prices, or biological measurements that cannot be negative.
+        <b>When to Consider:</b> For variables such as incomes, stock prices, or biological growth measures.
       "),
       "Half-Cauchy" = HTML("
         <b>The Half-Cauchy Distribution:</b><br>
@@ -1177,63 +1216,63 @@ server <- function(input, output, session) {
           <li><b>Heavy Tails:</b> Accommodates occasional extreme observations.</li>
           <li><b>Only Positive:</b> Suitable for non-negative data.</li>
         </ul>
-        <b>When to Consider:</b> When uncertainty in a scale parameter is high and outliers may be present.
+        <b>When to Consider:</b> For modeling a scale parameter with potential outliers.
       "),
       "Tweedie" = HTML("
         <b>The Tweedie Distribution:</b><br>
-        The Tweedie distribution is a flexible family that can combine discrete and continuous outcomes—especially useful when data contain many zeros along with positive values.<br><br>
+        The Tweedie distribution is a flexible family that combines discrete and continuous outcomes—especially useful when data contain many zeros along with positive values.<br><br>
         <b>Key Characteristics:</b>
         <ul>
-          <li><b>Compound Structure:</b> Merges features of the Poisson (for zeros/counts) with the Gamma (for continuous values).</li>
-          <li><b>Handles Excess Zeros:</b> Explicitly accounts for a surplus of zero outcomes.</li>
+          <li><b>Compound Structure:</b> Merges features of Poisson (for zeros) with Gamma (for positive values).</li>
+          <li><b>Handles Excess Zeros:</b> Designed for data with a surplus of zeros.</li>
         </ul>
-        <b>When to Consider:</b> For data such as insurance claims or rainfall intensities where zeros are common.
+        <b>When to Consider:</b> For modeling insurance claims or rainfall intensities.
       "),
       "Wald" = HTML("
         <b>The Wald Distribution (Inverse Gaussian):</b><br>
-        The Wald distribution, also known as the Inverse Gaussian, models positive, skewed data and is often used for response times or failure times.<br><br>
+        The Wald (or Inverse Gaussian) models positive, skewed data, often used for reliability or response time analysis.<br><br>
         <b>Key Characteristics:</b>
         <ul>
           <li><b>Positively Skewed:</b> Emphasizes lower values with a long right tail.</li>
-          <li><b>Time-to-Event Modeling:</b> Suitable for data representing durations until an event occurs.</li>
+          <li><b>Time-to-Event:</b> Suitable for durations until an event occurs.</li>
         </ul>
         <b>When to Consider:</b> For strictly positive, skewed data such as reaction times.
       "),
       "ZIP" = HTML("
         <b>The Zero-Inflated Poisson (ZIP) Distribution:</b><br>
-        The ZIP distribution extends the Poisson by incorporating a mass at zero to handle excess zero counts. It is used for modeling count data with more zeros than expected by a standard Poisson process.<br><br>
+        The ZIP extends the Poisson by including a mass at zero for excess zeros. Used when standard Poisson underestimates zeros.<br><br>
         <b>Key Characteristics:</b>
         <ul>
-          <li><b>Excess Zeros:</b> Explicitly models a higher chance for zero outcomes.</li>
-          <li><b>Discrete Counts:</b> Results are non-negative integers.</li>
+          <li><b>Excess Zeros:</b> Higher probability for zeros.</li>
+          <li><b>Discrete Counts:</b> Produces non-negative integers.</li>
         </ul>
-        <b>When to Consider:</b> For count data with a surplus of zeros, such as defect counts or species counts.
+        <b>When to Consider:</b> For count data with surplus zeros.
       "),
       "Bernoulli" = HTML("
         <b>The Bernoulli Distribution:</b><br>
-        The Bernoulli distribution models a single binary trial with two possible outcomes—success (1) or failure (0). It is the most basic discrete probability model.<br><br>
+        The Bernoulli models a single binary trial with two outcomes: success (1) or failure (0). It is the simplest discrete model.<br><br>
         <b>Key Characteristics:</b>
         <ul>
-          <li><b>Binary Outcome:</b> Only two possible results (0 or 1).</li>
-          <li><b>Foundational Model:</b> Serves as the basis for more complex models such as the Binomial distribution.</li>
+          <li><b>Binary Outcome:</b> Two possible values.</li>
+          <li><b>Foundational:</b> Basis for the Binomial distribution.</li>
         </ul>
-        <b>When to Consider:</b> For modeling a single trial outcome.
+        <b>When to Consider:</b> For single trial outcomes.
       "),
       "Negative Binomial" = HTML("
         <b>The Negative Binomial Distribution:</b><br>
-        The Negative Binomial distribution models overdispersed count data—that is, data whose variance exceeds the mean. It represents the number of failures before achieving a predetermined number of successes.<br><br>
+        The Negative Binomial models overdispersed count data, representing the number of failures before a target number of successes.<br><br>
         <b>Key Characteristics:</b>
         <ul>
-          <li><b>Overdispersion:</b> More flexible than the Poisson when data exhibit greater variability.</li>
-          <li><b>Discrete Outcomes:</b> Produces integer counts with additional spread.</li>
+          <li><b>Overdispersion:</b> More flexible variance than Poisson.</li>
+          <li><b>Discrete Outcomes:</b> Provides integer counts with extra variability.</li>
         </ul>
-        <b>When to Consider:</b> For count data that are more variable than what a Poisson model predicts.
+        <b>When to Consider:</b> For count data that exceed Poisson variance.
       ")
     )
     summary_text
   })
   
-  # Render distribution notation
+  # Duplicate: Distribution Notation (if repeated) -------------------------------------------------------------
   output$distributionNote <- renderUI({
     distribution <- input$distribution
     note <- switch(distribution,
@@ -1259,64 +1298,16 @@ server <- function(input, output, session) {
     note |> tagList()
   })
   
-  # Render PDF/PMF description for the Explore tab
-  output$distributionPDF <- renderUI({
-    distribution <- input$distribution
-    note <- switch(distribution,
-                   "Normal" = withMathJax("$$f(x)=\\frac{1}{\\sigma\\sqrt{2\\pi}}\\exp\\Big(-\\frac{(x-\\mu)^2}{2\\sigma^2}\\Big)$$"),
-                   "Poisson" = withMathJax("$$f(x)=\\frac{\\lambda^{as.integer(x)}e^{-\\lambda}}{(as.integer(x))!}$$"),
-                   "Uniform" = withMathJax("$$f(x)=\\frac{1}{b-a}\\quad \\text{for }a\\le x\\le b$$"),
-                   "Beta" = withMathJax("$$f(x)=\\frac{\\Gamma(\\alpha+\\beta)}{\\Gamma(\\alpha)\\Gamma(\\beta)}x^{\\alpha-1}(1-x)^{\\beta-1}\\quad \\text{for }0\\le x\\le 1$$"),
-                   "Student's T" = withMathJax("$$f(x)=\\frac{\\Gamma((\\nu+1)/2)}{\\sqrt{\\nu\\pi}\\,\\Gamma(\\nu/2)}\\Big(1+\\frac{x^2}{\\nu}\\Big)^{-\\frac{\\nu+1}{2}}$$"),
-                   "Binomial" = withMathJax("$$f(x)=\\binom{n}{as.integer(x)}p^{as.integer(x)}(1-p)^{n-as.integer(x)}$$"),
-                   "Exponential" = withMathJax("$$f(x)=\\lambda e^{-\\lambda x}\\quad \\text{for }x\\ge 0$$"),
-                   "Gamma" = withMathJax("$$f(x)=\\frac{\\lambda^\\alpha}{\\Gamma(\\alpha)}x^{\\alpha-1}e^{-\\lambda x}\\quad \\text{for }x\\ge 0$$"),
-                   "Log-Normal" = withMathJax("$$f(x)=\\frac{1}{x\\sigma\\sqrt{2\\pi}}\\exp\\Big(-\\frac{(\\ln x-\\mu)^2}{2\\sigma^2}\\Big)\\quad \\text{for }x>0$$"),
-                   "Half-Cauchy" = withMathJax("$$f(x)=\\frac{2\\alpha}{\\pi(x^2+\\alpha^2)}\\quad \\text{for }x\\ge 0$$"),
-                   "Tweedie" = withMathJax("$$f(x)=h(\\sigma^2,x)\\exp\\Big[\\frac{px-A(p)}{\\sigma^2}\\Big]$$"),
-                   "Wald" = withMathJax("$$f(x)=\\sqrt{\\frac{\\lambda}{2\\pi x^3}}\\exp\\Big(-\\frac{\\lambda(x-\\mu)^2}{2\\mu^2x}\\Big)$$"),
-                   "ZIP" = withMathJax("$$f(x)=\\begin{cases} \\pi+(1-\\pi)e^{-\\lambda} & x=0\\\\ (1-\\pi)\\frac{\\lambda^{as.integer(x)}e^{-\\lambda}}{(as.integer(x))!} & x>0 \\end{cases}$$"),
-                   "Bernoulli" = withMathJax("$$f(x)=p^{as.integer(x)}(1-p)^{1-as.integer(x)}\\quad \\text{for }x\\in\\{0,1\\}$$"),
-                   "Negative Binomial" = withMathJax("$$f(x)=\\frac{\\Gamma(as.integer(x)+n)}{\\Gamma(n)\\,\\Gamma(as.integer(x)+1)}\\Big(\\frac{n}{n+\\mu}\\Big)^n\\Big(\\frac{\\mu}{n+\\mu}\\Big)^{as.integer(x)}\\quad \\text{for }x=0,1,2,...$$")
-    )
-    note |> tagList()
-  })
-  
-  output$distributionEG <- renderText({
-    distribution <- input$distribution
-    text <- switch(distribution,
-                   "Normal" = "Examples: Plant height, exam scores, IQ scores, blood pressure readings.",
-                   "Poisson" = "Examples: Number of phone calls per hour, customer arrivals, manufacturing defects.",
-                   "Uniform" = "Examples: Random lottery numbers, random sampling within a fixed range.",
-                   "Beta" = "Examples: Conversion rates, proportion of defective items, survey proportions.",
-                   "Student's T" = "Examples: Test scores from small samples, reaction times, or small-sample measurements.",
-                   "Binomial" = "Examples: Successes in coin tosses, pass/fail outcomes, survey responses.",
-                   "Exponential" = "Examples: Time between arrivals, waiting times, duration until an event.",
-                   "Gamma" = "Examples: Waiting times until multiple events, machine lifespans, service times.",
-                   "Log-Normal" = "Examples: Income distributions, stock prices, biological growth measures.",
-                   "Half-Cauchy" = "Examples: Priors for scale in Bayesian models, or data with potential outliers.",
-                   "Tweedie" = "Examples: Insurance claim amounts, rainfall intensities, ecological count data.",
-                   "Wald" = "Examples: Reaction times, reliability data, time until system failure.",
-                   "ZIP" = "Examples: Count data with excess zeros, such as species counts or defect counts.",
-                   "Bernoulli" = "Examples: Outcome of a single yes/no experiment.",
-                   "Negative Binomial" = "Examples: Overdispersed counts such as goals in sports or failures before success."
-    )
-    text
-  })
-  
-  
-
-# Simulate data -----------------------------------------------------------
-
+  # Simulate Data -------------------------------------------------------------
   observeEvent(input$sim_dist, {
     defaultFam <- switch(input$sim_dist,
                          "Normal" = "Normal",
                          "Poisson" = "Poisson",
                          "Binomial" = "Binomial",
-                         "Bernoulli" = "Binomial"
+                         "Bernoulli" = "Bernoulli"
     )
     updateSelectInput(session, "mod_family", selected = defaultFam)
-  })  
+  })
   
   simData <- reactive({
     N <- input$sim_N
@@ -1327,12 +1318,12 @@ server <- function(input, output, session) {
     }
     if (input$sim_use_grp) {
       grps <- as.numeric(input$sim_grps)
-      grp <- paste("Group", toupper(letters[sample(1:grps, size = N, replace = TRUE)]))
+      grp <- factor(paste("Group", toupper(letters[sample(1:grps, size = N, replace = TRUE)])))
     } else {
       grp <- rep(NA, N)
     }
     
-    # Build the true linear predictor
+    # Simulate true linear predictor -------------------------------------------------------------
     linear_pred <- rep(0, N)
     if (input$sim_use_x) {
       linear_pred <- linear_pred + input$sim_intercept + input$sim_slope * x
@@ -1348,7 +1339,21 @@ server <- function(input, output, session) {
       linear_pred <- linear_pred + effect
     }
     
-    # Simulate y based on chosen simulation distribution
+    # Extra unobserved effects -------------------------------------------------------------
+    if (input$sim_unobs_linear) {
+      z <- rnorm(N)
+      linear_pred <- linear_pred + 1 * z
+    }
+    if (input$sim_unobs_cat) {
+      unobs_cat <- factor(sample(c("A", "B"), N, replace = TRUE))
+      linear_pred <- linear_pred + ifelse(unobs_cat == "B", 1, 0)
+    }
+    if (input$sim_unobs_nonlinear) {
+      v <- runif(N, 0, 2 * pi)
+      linear_pred <- linear_pred + 8 * sin(0.8 * v)
+    }
+    
+    # Simulate y based on chosen distribution -------------------------------------------------------------
     sim_y <- switch(input$sim_dist,
                     "Normal" = rnorm(N, mean = linear_pred, sd = input$sim_sd),
                     "Poisson" = rpois(N, lambda = exp(linear_pred)),
@@ -1359,10 +1364,9 @@ server <- function(input, output, session) {
     data.frame(y = sim_y, x = x, grp = grp)
   })
   
+  # Fit Model -------------------------------------------------------------
   fitModel <- reactive({
     df <- simData()
-    
-    # Build the predictor part of the formula as a string
     if (input$sim_use_x & input$sim_use_grp) {
       predictor_str <- "x + grp"
     } else if (input$sim_use_x) {
@@ -1372,8 +1376,6 @@ server <- function(input, output, session) {
     } else {
       predictor_str <- "1"
     }
-    
-    # If the model family is Binomial but simulation distribution isn’t Bernoulli, use cbind technique
     if (input$mod_family == "Binomial" & input$sim_dist != "Bernoulli") {
       df$fail <- input$sim_trials - df$y
       form <- as.formula(paste("cbind(y, fail) ~", predictor_str))
@@ -1383,59 +1385,51 @@ server <- function(input, output, session) {
       fam <- switch(input$mod_family,
                     "Normal"    = gaussian(),
                     "Poisson"   = poisson(),
-                    "Bernoulli" = binomial())
+                    "Bernoulli" = binomial()
+      )
       mod <- glm(form, data = df, family = fam)
     }
-    
     mod
   })
   
-  
-  
-  # Forest plot comparing true vs estimated parameters
+  # Forest Plot -------------------------------------------------------------
   output$forestPlot <- renderPlot({
     df <- simData()
     mod <- fitModel()
-    
-    # Build dictionary of true parameters. Always include the intercept.
     true_params <- list("(Intercept)" = input$sim_intercept)
     if (input$sim_use_x) {
       true_params[["x"]] <- input$sim_slope
     }
     if (input$sim_use_grp) {
-      # When using factors, R typically names the coefficients as "grpGroup B", etc.
       true_params[["grpGroup B"]] <- input$sim_grpB
       if (as.numeric(input$sim_grps) == 3) {
         true_params[["grpGroup C"]] <- input$sim_grpC
       }
     }
-    
     est <- coef(mod)
-    # Convert confint(mod) so it is a matrix even when there's only one row.
     cis <- confint(mod)
     if (is.null(dim(cis))) {
       cis <- matrix(cis, nrow = 1)
     }
-    
-    # Create data frame for plotting.
     param_names <- names(est)
     df_forest <- data.frame(
       Parameter = param_names,
       Estimated = unname(est),
-      Lower = cis[,1],
-      Upper = cis[,2],
+      Lower = cis[, 1],
+      Upper = cis[, 2],
       True = sapply(param_names, function(p) {
         if (p %in% names(true_params)) true_params[[p]] else NA
       }),
       stringsAsFactors = FALSE
     )
-    
     ggplot(df_forest, aes(x = Parameter, y = Estimated)) +
       geom_pointrange(aes(ymin = Lower, ymax = Upper), color = "#1B9E77") +
       geom_point(aes(y = True), color = "#D95F02", shape = 18, size = 3) +
       coord_flip() +
-      labs(title = "Comparison of True vs Estimated Parameters",
-           y = "Coefficient Value") +
+      labs(
+        title = "Comparison of True vs Estimated Parameters",
+        y = "Coefficient Value"
+      ) +
       theme_minimal() +
       theme(
         panel.background = element_blank(),
@@ -1450,19 +1444,14 @@ server <- function(input, output, session) {
       )
   })
   
-  
+  # Predicted Relationship Plot -------------------------------------------------------------
   output$predPlot <- renderPlot({
     df <- simData()
     mod <- fitModel()
-    
-    # Fitted predictions on the response scale (always correct).
     df$predicted <- predict(mod, newdata = df, type = "response")
-    
-    if(input$mod_family == "Binomial"){
+    if (input$mod_family == "Binomial") {
       df$predicted <- input$sim_trials * df$predicted
     }
-    
-    # 1) Recompute the linear predictor (same as in simData).
     true_lp <- rep(0, nrow(df))
     if (input$sim_use_x) {
       true_lp <- true_lp + input$sim_intercept + input$sim_slope * df$x
@@ -1477,25 +1466,22 @@ server <- function(input, output, session) {
       }
       true_lp <- true_lp + effect
     }
-    
-    # 2) For each distribution, convert linear_pred to the mean on the response scale
-    df$true <- switch(input$mod_family,
-                      "Normal"   = true_lp,
-                      "Poisson"  = exp(true_lp),
+    df$true <- switch(input$sim_dist,
+                      "Normal" = true_lp,
+                      "Poisson" = exp(true_lp),
                       "Binomial" = input$sim_trials * plogis(true_lp),
-                      "Bernoulli"= plogis(true_lp)
+                      "Bernoulli" = plogis(true_lp)
     )
-    
-    # Then plot as before.
-    # Example: if user has both x and grp, facet by grp:
     if (input$sim_use_x & input$sim_use_grp) {
       p <- ggplot(df, aes(x = x)) +
         geom_point(aes(y = y), color = "grey") +
         geom_line(aes(y = true, color = "Truth"), size = 1) +
         geom_line(aes(y = predicted, color = "Estimated"), size = 1, linetype = "dashed") +
         facet_wrap(~grp) +
-        labs(title = "True vs Predicted Relationships by Group",
-             x = "x", y = "y", color = "") +
+        labs(
+          title = "True vs Predicted Relationships by Group",
+          x = "x", y = "y", color = ""
+        ) +
         scale_color_brewer(palette = "Dark2", breaks = c("Truth", "Estimated")) +
         theme_minimal() +
         theme(
@@ -1510,13 +1496,14 @@ server <- function(input, output, session) {
           panel.grid.minor = element_line(color = "#444654")
         )
     } else if (input$sim_use_x) {
-      # Slope-only model
       p <- ggplot(df, aes(x = x)) +
         geom_point(aes(y = y), color = "grey") +
         geom_line(aes(y = true, color = "Truth"), size = 1) +
         geom_line(aes(y = predicted, color = "Estimated"), size = 1, linetype = "dashed") +
-        labs(title = "True vs Predicted Relationship",
-             x = "x", y = "y", color = "") +
+        labs(
+          title = "True vs Predicted Relationship",
+          x = "x", y = "y", color = ""
+        ) +
         scale_color_brewer(palette = "Dark2", breaks = c("Truth", "Estimated")) +
         theme_minimal() +
         theme(
@@ -1531,13 +1518,14 @@ server <- function(input, output, session) {
           panel.grid.minor = element_line(color = "#444654")
         )
     } else if (input$sim_use_grp) {
-      # Categorical only
       p <- ggplot(df, aes(x = grp)) +
         geom_boxplot(aes(y = y), fill = "#72758d", colour = "white") +
         geom_point(aes(y = true, color = "Truth"), size = 3) +
         geom_point(aes(y = predicted, color = "Estimated"), size = 3, shape = 17) +
-        labs(title = "True vs Predicted Group Means",
-             x = "Group", y = "y", color = "") +
+        labs(
+          title = "True vs Predicted Group Means",
+          x = "Group", y = "y", color = ""
+        ) +
         scale_color_brewer(palette = "Dark2", breaks = c("Truth", "Estimated")) +
         theme_minimal() +
         theme(
@@ -1556,13 +1544,14 @@ server <- function(input, output, session) {
           panel.grid.minor = element_line(color = "#444654")
         )
     } else {
-      # Intercept-only
       p <- ggplot(df, aes(x = 1:nrow(df), y = y)) +
         geom_point(color = "grey") +
         geom_line(aes(y = true, color = "Truth"), size = 1) +
         geom_line(aes(y = predicted, color = "Estimated"), size = 1, linetype = "dashed") +
-        labs(title = "True vs Predicted (Intercept-only model)",
-             x = "Observation", y = "y", color = "") +
+        labs(
+          title = "True vs Predicted (Intercept-only model)",
+          x = "Observation", y = "y", color = ""
+        ) +
         scale_color_brewer(palette = "Dark2", breaks = c("Truth", "Estimated")) +
         theme_minimal() +
         theme(
@@ -1581,15 +1570,13 @@ server <- function(input, output, session) {
           panel.grid.minor = element_line(color = "#444654")
         )
     }
-    
     p
   })
   
+  # Parameter Summary Table -------------------------------------------------------------
   output$paramSummary <- DT::renderDataTable({
     mod <- fitModel()
     est <- coef(mod)
-    
-    # True parameters based on simulation inputs
     true_params <- list()
     if (input$sim_use_x) {
       true_params[["(Intercept)"]] <- input$sim_intercept
@@ -1598,12 +1585,11 @@ server <- function(input, output, session) {
       true_params[["(Intercept)"]] <- input$sim_intercept
     }
     if (input$sim_use_grp) {
-      true_params[["grpB"]] <- input$sim_grpB
+      true_params[["grpGroup B"]] <- input$sim_grpB
       if (as.numeric(input$sim_grps) == 3) {
-        true_params[["grpC"]] <- input$sim_grpC
+        true_params[["grpGroup C"]] <- input$sim_grpC
       }
     }
-    
     df_forest <- data.frame(
       Parameter = names(est),
       Estimated = unname(est),
@@ -1612,16 +1598,190 @@ server <- function(input, output, session) {
       }),
       stringsAsFactors = FALSE
     )
+    DT::datatable(df_forest, rownames = FALSE, options = list(pageLength = 10)) |>
+      DT::formatStyle(columns = names(df_forest), color = "white")
+  })
+  
+  # Diagnostics Plot -------------------------------------------------------------
+  output$diagnosticsPlot <- renderPlot({
+    model <- fitModel()
+    oldpar <- par(no.readonly = TRUE)
+    on.exit(par(oldpar))
+    par(
+      mfrow = c(2, 2),
+      bg = "#202123",
+      col.lab = "white",
+      col.axis = "white",
+      col.main = "white",
+      col.sub = "white",
+      fg = "white",
+      cex.lab = 1.2,
+      cex.main = 1.4
+    )
+    plot(model)
+  })
+  
+  # Data Generating Process Equation -------------------------------------------------------------
+  output$dgp_eq <- renderUI({
+    sim_dist <- input$sim_dist
+    use_x <- input$sim_use_x
+    use_grp <- input$sim_use_grp
+    grp_count <- if (use_grp) as.numeric(input$sim_grps) else 0
     
-    DT::datatable(df_forest, 
-                  rownames = FALSE, 
-                  options = list(pageLength = 10)
-    ) |> 
-      DT::formatStyle(
-        columns = names(df_forest),
-        color = 'white'
-      )
-  })  
+    if (sim_dist == "Normal") {
+      eq1 <- "$$ y_i \\sim Normal(\\mu_i, \\sigma^2) $$"
+      if (use_x && use_grp) {
+        eq2 <- if (grp_count == 2) {
+          "$$ \\mu_i = \\beta_0 + \\beta_1\\,x_i + \\beta_2 \\times GrpB $$"
+        } else {
+          "$$ \\mu_i = \\beta_0 + \\beta_1\\,x_i + \\beta_2 \\times GrpB + \\beta_3 \\times GrpC $$"
+        }
+      } else if (use_x) {
+        eq2 <- "$$ \\mu_i = \\beta_0 + \\beta_1\\,x_i $$"
+      } else if (use_grp) {
+        eq2 <- if (grp_count == 2) {
+          "$$ \\mu_i = \\beta_0 + \\beta_1 \\times GrpB $$"
+        } else {
+          "$$ \\mu_i = \\beta_0 + \\beta_1 \\times GrpB + \\beta_2 \\times GrpC $$"
+        }
+      } else {
+        eq2 <- "$$ \\mu_i = \\beta_0 $$"
+      }
+    } else if (sim_dist == "Poisson") {
+      eq1 <- "$$ y_i \\sim Poisson(\\lambda_i) $$"
+      if (use_x && use_grp) {
+        eq2 <- if (grp_count == 2) {
+          "$$ \\log(\\lambda_i) = \\beta_0 + \\beta_1\\,x_i + \\beta_2 \\times GrpB $$"
+        } else {
+          "$$ \\log(\\lambda_i) = \\beta_0 + \\beta_1\\,x_i + \\beta_2 \\times GrpB + \\beta_3 \\times GrpC $$"
+        }
+      } else if (use_x) {
+        eq2 <- "$$ \\log(\\lambda_i) = \\beta_0 + \\beta_1\\,x_i $$"
+      } else if (use_grp) {
+        eq2 <- if (grp_count == 2) {
+          "$$ \\log(\\lambda_i) = \\beta_0 + \\beta_1 \\times GrpB $$"
+        } else {
+          "$$ \\log(\\lambda_i) = \\beta_0 + \\beta_1 \\times GrpB + \\beta_2 \\times GrpC $$"
+        }
+      } else {
+        eq2 <- "$$ \\log(\\lambda_i) = \\beta_0 $$"
+      }
+    } else if (sim_dist == "Binomial") {
+      eq1 <- "$$ y_i \\sim Binomial(n, \\pi_i) $$"
+      if (use_x && use_grp) {
+        eq2 <- if (grp_count == 2) {
+          "$$ logit(\\pi_i) = \\beta_0 + \\beta_1\\,x_i + \\beta_2 \\times GrpB $$"
+        } else {
+          "$$ logit(\\pi_i) = \\beta_0 + \\beta_1\\,x_i + \\beta_2 \\times GrpB + \\beta_3 \\times GrpC $$"
+        }
+      } else if (use_x) {
+        eq2 <- "$$ logit(\\pi_i) = \\beta_0 + \\beta_1\\,x_i $$"
+      } else if (use_grp) {
+        eq2 <- if (grp_count == 2) {
+          "$$ logit(\\pi_i) = \\beta_0 + \\beta_1 \\times GrpB $$"
+        } else {
+          "$$ logit(\\pi_i) = \\beta_0 + \\beta_1 \\times GrpB + \\beta_2 \\times GrpC $$"
+        }
+      } else {
+        eq2 <- "$$ logit(\\pi_i) = \\beta_0 $$"
+      }
+    } else if (sim_dist == "Bernoulli") {
+      eq1 <- "$$ y_i \\sim Bernoulli(\\pi_i) $$"
+      if (use_x && use_grp) {
+        eq2 <- if (grp_count == 2) {
+          "$$ logit(\\pi_i) = \\beta_0 + \\beta_1\\,x_i + \\beta_2 \\times GrpB $$"
+        } else {
+          "$$ logit(\\pi_i) = \\beta_0 + \\beta_1\\,x_i + \\beta_2 \\times GrpB + \\beta_3 \\times GrpC $$"
+        }
+      } else if (use_x) {
+        eq2 <- "$$ logit(\\pi_i) = \\beta_0 + \\beta_1\\,x_i $$"
+      } else if (use_grp) {
+        eq2 <- if (grp_count == 2) {
+          "$$ logit(\\pi_i) = \\beta_0 + \\beta_1 \\times GrpB $$"
+        } else {
+          "$$ logit(\\pi_i) = \\beta_0 + \\beta_1 \\times GrpB + \\beta_2 \\times GrpC $$"
+        }
+      } else {
+        eq2 <- "$$ logit(\\pi_i) = \\beta_0 $$"
+      }
+    }
+    
+    withMathJax(HTML(paste(eq1, eq2)))
+  })
+  
+  # Model Equation for Fitting -------------------------------------------------------------
+  output$model_eq <- renderUI({
+    mod_fam <- input$mod_family
+    use_x <- input$sim_use_x
+    use_grp <- input$sim_use_grp
+    grp_count <- if (use_grp) as.numeric(input$sim_grps) else 0
+    
+    if (mod_fam == "Normal") {
+      eq1 <- "$$ y_i \\sim Normal(\\mu_i, \\sigma^2) $$"
+      if (use_x && use_grp) {
+        eq2 <- if (grp_count == 2) {
+          "$$ \\mu_i = \\beta_0 + \\beta_1\\,x_i + \\beta_2 \\times GrpB $$"
+        } else {
+          "$$ \\mu_i = \\beta_0 + \\beta_1\\,x_i + \\beta_2 \\times GrpB + \\beta_3\\times GrpC $$"
+        }
+      } else if (use_x) {
+        eq2 <- "$$ \\mu_i = \\beta_0 + \\beta_1\\,x_i $$"
+      } else if (use_grp) {
+        eq2 <- if (grp_count == 2) {
+          "$$ \\mu_i = \\beta_0 + \\beta_1 \\times GrpB $$"
+        } else {
+          "$$ \\mu_i = \\beta_0 + \\beta_1 \\times GrpB + \\beta_2 \\times GrpC $$"
+        }
+      } else {
+        eq2 <- "$$ \\mu_i = \\beta_0 $$"
+      }
+    } else if (mod_fam == "Poisson") {
+      eq1 <- "$$ y_i \\sim Poisson(\\lambda_i) $$"
+      if (use_x && use_grp) {
+        eq2 <- if (grp_count == 2) {
+          "$$ \\log(\\lambda_i) = \\beta_0 + \\beta_1\\,x_i + \\beta_2 \\times GrpB $$"
+        } else {
+          "$$ \\log(\\lambda_i) = \\beta_0 + \\beta_1\\,x_i + \\beta_2 \\times GrpB + \\beta_3\\times GrpC $$"
+        }
+      } else if (use_x) {
+        eq2 <- "$$ \\log(\\lambda_i) = \\beta_0 + \\beta_1\\,x_i $$"
+      } else if (use_grp) {
+        eq2 <- if (grp_count == 2) {
+          "$$ \\log(\\lambda_i) = \\beta_0 + \\beta_1 \\times GrpB $$"
+        } else {
+          "$$ \\log(\\lambda_i) = \\beta_0 + \\beta_1 \\times GrpB + \\beta_2 \\times GrpC $$"
+        }
+      } else {
+        eq2 <- "$$ \\log(\\lambda_i) = \\beta_0 $$"
+      }
+    } else if (mod_fam %in% c("Binomial", "Bernoulli")) {
+      if(mod_fam == "Binomial")
+        eq1 <- "$$ y_i \\sim Binomial(n, \\pi_i) $$"
+      else
+        eq1 <- "$$ y_i \\sim Bernoulli(\\pi_i) $$"
+      if (use_x && use_grp) {
+        eq2 <- if (grp_count == 2) {
+          "$$ \\mu_i = \\beta_0 + \\beta_1\\,x_i + \\beta_2 \\times GrpB $$"
+        } else {
+          "$$ \\mu_i = \\beta_0 + \\beta_1\\,x_i + \\beta_2 \\times GrpB + \\beta_3 \\times GrpC $$"
+        }
+      } else if (use_x) {
+        eq2 <- "$$ logit(\\pi_i) = \\beta_0 + \\beta_1\\,x_i $$"
+      } else if (use_grp) {
+        eq2 <- if (grp_count == 2) {
+          "$$ \\mu_i = \\beta_0 + \\beta_1 \\times GrpB $$"
+        } else {
+          "$$ \\mu_i = \\beta_0 + \\beta_1 \\times GrpB + \\beta_2 \\times GrpC $$"
+        }
+      } else {
+        eq2 <- "$$ logit(\\pi_i) = \\beta_0 $$"
+      }
+    }
+    
+    withMathJax(HTML(paste(eq1, eq2)))
+  })
+  
 }
 
+# Run App -------------------------------------------------------------
 shinyApp(ui = ui, server = server)

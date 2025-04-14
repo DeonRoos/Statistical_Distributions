@@ -5,7 +5,7 @@ account: deonroos
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 9451603
-bundleId: 10108873
+bundleId: 10112071
 url: https://deonroos.shinyapps.io/Distributions/
 asMultiple: FALSE
 asStatic: FALSE
