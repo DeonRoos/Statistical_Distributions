@@ -340,7 +340,7 @@ ui <- navbarPage(
                    "Discrete" = sort(c("Poisson", "Binomial", "Bernoulli", "ZIP", "Negative Binomial"))
                  ),
                  multiple = TRUE,
-                 selected = c("Poisson", "ZIP"),
+                 selected = c("Normal", "Poisson"),
                  options = list(`live-search` = TRUE)
                ),
                h4("X-axis interval for visualization"),
@@ -422,7 +422,7 @@ ui <- navbarPage(
                tabsetPanel(
                  tabPanel("Predicted Relationship", plotOutput("predPlot")),
                  tabPanel("Forest Plot", plotOutput("forestPlot")),
-                 tabPanel("Simulated Data",
+                 tabPanel("Parameter Comparison",
                           # Inject custom CSS that overrides DataTables defaults
                           tags$style(HTML("
     /* Make text in search/filter, length, info, and pagination controls white */
@@ -1458,6 +1458,10 @@ server <- function(input, output, session) {
     # Fitted predictions on the response scale (always correct).
     df$predicted <- predict(mod, newdata = df, type = "response")
     
+    if(input$mod_family == "Binomial"){
+      df$predicted <- input$sim_trials * df$predicted
+    }
+    
     # 1) Recompute the linear predictor (same as in simData).
     true_lp <- rep(0, nrow(df))
     if (input$sim_use_x) {
@@ -1475,7 +1479,7 @@ server <- function(input, output, session) {
     }
     
     # 2) For each distribution, convert linear_pred to the mean on the response scale
-    df$true <- switch(input$sim_dist,
+    df$true <- switch(input$mod_family,
                       "Normal"   = true_lp,
                       "Poisson"  = exp(true_lp),
                       "Binomial" = input$sim_trials * plogis(true_lp),
@@ -1497,11 +1501,13 @@ server <- function(input, output, session) {
         theme(
           panel.background = element_blank(),
           plot.background = element_rect(fill = "#202123"),
-          strip.text = element_text(color = "white"),
-          axis.text = element_text(color = "white"),
-          axis.title = element_text(color = "white"),
-          plot.title = element_text(color = "white"),
-          legend.text = element_text(color = "white")
+          plot.title = element_text(color = "white", size = 16),
+          axis.text = element_text(color = "white", size = 12),
+          axis.title = element_text(color = "white", size = 14),
+          legend.title = element_text(color = "white", size = 12),
+          legend.text = element_text(color = "white", size = 10),
+          panel.grid.major = element_line(color = "#444654"),
+          panel.grid.minor = element_line(color = "#444654")
         )
     } else if (input$sim_use_x) {
       # Slope-only model
@@ -1516,15 +1522,18 @@ server <- function(input, output, session) {
         theme(
           panel.background = element_blank(),
           plot.background = element_rect(fill = "#202123"),
-          axis.text = element_text(color = "white"),
-          axis.title = element_text(color = "white"),
-          plot.title = element_text(color = "white"),
-          legend.text = element_text(color = "white")
+          plot.title = element_text(color = "white", size = 16),
+          axis.text = element_text(color = "white", size = 12),
+          axis.title = element_text(color = "white", size = 14),
+          legend.title = element_text(color = "white", size = 12),
+          legend.text = element_text(color = "white", size = 10),
+          panel.grid.major = element_line(color = "#444654"),
+          panel.grid.minor = element_line(color = "#444654")
         )
     } else if (input$sim_use_grp) {
       # Categorical only
       p <- ggplot(df, aes(x = grp)) +
-        geom_boxplot(aes(y = y), fill = "lightgrey") +
+        geom_boxplot(aes(y = y), fill = "#72758d", colour = "white") +
         geom_point(aes(y = true, color = "Truth"), size = 3) +
         geom_point(aes(y = predicted, color = "Estimated"), size = 3, shape = 17) +
         labs(title = "True vs Predicted Group Means",
@@ -1534,10 +1543,17 @@ server <- function(input, output, session) {
         theme(
           panel.background = element_blank(),
           plot.background = element_rect(fill = "#202123"),
-          axis.text = element_text(color = "white"),
-          axis.title = element_text(color = "white"),
-          plot.title = element_text(color = "white"),
-          legend.text = element_text(color = "white")
+          plot.title = element_text(color = "white", size = 14),
+          plot.subtitle = element_text(color = "white", size = 12),
+          axis.title = element_text(color = "white", size = 12),
+          axis.text = element_text(color = "white", size = 8),
+          legend.title = element_text(color = "white", size = 12),
+          legend.text = element_text(color = "white", size = 8),
+          strip.text = element_text(color = "white", size = 8),
+          strip.background = element_rect(color = "#202123", fill = "#202123", size = 1),
+          panel.border = element_rect(color = "#202123", fill = NA, size = 1),
+          panel.grid.major = element_line(color = "#444654"),
+          panel.grid.minor = element_line(color = "#444654")
         )
     } else {
       # Intercept-only
@@ -1552,10 +1568,17 @@ server <- function(input, output, session) {
         theme(
           panel.background = element_blank(),
           plot.background = element_rect(fill = "#202123"),
-          axis.text = element_text(color = "white"),
-          axis.title = element_text(color = "white"),
-          plot.title = element_text(color = "white"),
-          legend.text = element_text(color = "white")
+          plot.title = element_text(color = "white", size = 14),
+          plot.subtitle = element_text(color = "white", size = 12),
+          axis.title = element_text(color = "white", size = 12),
+          axis.text = element_text(color = "white", size = 8),
+          legend.title = element_text(color = "white", size = 12),
+          legend.text = element_text(color = "white", size = 8),
+          strip.text = element_text(color = "white", size = 8),
+          strip.background = element_rect(color = "#202123", fill = "#202123", size = 1),
+          panel.border = element_rect(color = "#202123", fill = NA, size = 1),
+          panel.grid.major = element_line(color = "#444654"),
+          panel.grid.minor = element_line(color = "#444654")
         )
     }
     
