@@ -428,28 +428,34 @@ ui <- navbarPage(
                numericInput("sim_N", "Sample size (N):", value = 100, min = 10),
                conditionalPanel(
                  condition = "input.sim_dist == 'Normal'",
-                 numericInput("sim_sd", "Error standard deviation:", value = 1, min = 0, step = 0.1)
+                 numericInput("sim_sd", "Error standard deviation:", value = 1, min = 0, step = 0.5)
                ),
                h4("Data Generating Process"),
                uiOutput("dgp_eq"),
                tags$hr(style = "border-color: #00A68A;"),
                # Intercept Input -------------------------------------------------------------
-               numericInput("sim_intercept", "Intercept:", value = 0, step = 0.1),
+               numericInput("sim_intercept", "Intercept:", value = 0, step = 0.5),
                # Continuous Predictor -------------------------------------------------------------
                checkboxInput("sim_use_x", "Include continuous predictor (x)", value = TRUE),
                conditionalPanel(
                  condition = "input.sim_use_x == true",
-                 numericInput("sim_slope", "Slope:", value = 1, step = 0.1)
+                 tagList(
+                   conditionalPanel(
+                     condition = "input.nonlinear_x == false",
+                     numericInput("sim_slope", "Slope:", value = 1, step = 0.1)
+                   ),
+                   checkboxInput("nonlinear_x", "Make x non-linear", value = FALSE)
+                 )
                ),
                # Categorical Predictor -------------------------------------------------------------
                checkboxInput("sim_use_grp", "Include categorical predictor (grp)", value = FALSE),
                conditionalPanel(
                  condition = "input.sim_use_grp == true",
                  selectInput("sim_grps", "Number of groups:", choices = c(2, 3), selected = 2),
-                 numericInput("sim_grpB", "Effect for Group B (reference = Group A):", value = 1, step = 0.1),
+                 numericInput("sim_grpB", "Effect for Group B (reference = Group A):", value = 1, step = 0.5),
                  conditionalPanel(
                    condition = "input.sim_grps == 3",
-                   numericInput("sim_grpC", "Effect for Group C:", value = 2, step = 0.1)
+                   numericInput("sim_grpC", "Effect for Group C:", value = 2, step = 0.5)
                  )
                ),
                # Unobserved Effects -------------------------------------------------------------
@@ -494,7 +500,9 @@ ui <- navbarPage(
             ")),
             DT::dataTableOutput("paramSummary")
                  ),
-            tabPanel("Diagnostics", plotOutput("diagnosticsPlot"))
+            tabPanel("Diagnostics", plotOutput("diagnosticsPlot")),
+            tabPanel("Raw Data Figures", plotOutput("rawFigures", width = "100%", height = "700px")),
+            tabPanel("Raw Data", DT::dataTableOutput("rawData"))
                )
              )
            )
@@ -1299,16 +1307,6 @@ server <- function(input, output, session) {
   })
   
   # Simulate Data -------------------------------------------------------------
-  observeEvent(input$sim_dist, {
-    defaultFam <- switch(input$sim_dist,
-                         "Normal" = "Normal",
-                         "Poisson" = "Poisson",
-                         "Binomial" = "Binomial",
-                         "Bernoulli" = "Bernoulli"
-    )
-    updateSelectInput(session, "mod_family", selected = defaultFam)
-  })
-  
   simData <- reactive({
     N <- input$sim_N
     if (input$sim_use_x) {
@@ -1316,44 +1314,49 @@ server <- function(input, output, session) {
     } else {
       x <- rep(NA, N)
     }
-    if (input$sim_use_grp) {
-      grps <- as.numeric(input$sim_grps)
-      grp <- factor(paste("Group", toupper(letters[sample(1:grps, size = N, replace = TRUE)])))
-    } else {
-      grp <- rep(NA, N)
-    }
+    grp <- if (input$sim_use_grp) {
+      factor(paste("Group", toupper(letters[sample(1:as.numeric(input$sim_grps), size = N, replace = TRUE)])))
+    } else rep(NA, N)
     
-    # Simulate true linear predictor -------------------------------------------------------------
     linear_pred <- rep(0, N)
     if (input$sim_use_x) {
-      linear_pred <- linear_pred + input$sim_intercept + input$sim_slope * x
+      if (isTRUE(input$nonlinear_x)) {
+        linear_pred <- linear_pred + input$sim_intercept + input$sim_slope * (4 * sin(2 + 0.6 * x + 1))
+      } else {
+        linear_pred <- linear_pred + input$sim_intercept + input$sim_slope * x
+      }
     } else {
       linear_pred <- linear_pred + input$sim_intercept
     }
     if (input$sim_use_grp) {
       effect <- rep(0, N)
       effect[grp == "Group B"] <- input$sim_grpB
-      if(as.numeric(input$sim_grps) == 3) {
+      if(as.numeric(input$sim_grps) == 3)
         effect[grp == "Group C"] <- input$sim_grpC
-      }
       linear_pred <- linear_pred + effect
     }
     
-    # Extra unobserved effects -------------------------------------------------------------
     if (input$sim_unobs_linear) {
       z <- rnorm(N)
       linear_pred <- linear_pred + 1 * z
+    } else {
+      z <- NA
     }
+    
     if (input$sim_unobs_cat) {
       unobs_cat <- factor(sample(c("A", "B"), N, replace = TRUE))
-      linear_pred <- linear_pred + ifelse(unobs_cat == "B", 1, 0)
+      linear_pred <- linear_pred + ifelse(unobs_cat == "B", 1, 0) * 5
+    } else {
+      unobs_cat <- NA
     }
+    
     if (input$sim_unobs_nonlinear) {
       v <- runif(N, 0, 2 * pi)
       linear_pred <- linear_pred + 8 * sin(0.8 * v)
+    } else {
+      v <- NA
     }
     
-    # Simulate y based on chosen distribution -------------------------------------------------------------
     sim_y <- switch(input$sim_dist,
                     "Normal" = rnorm(N, mean = linear_pred, sd = input$sim_sd),
                     "Poisson" = rpois(N, lambda = exp(linear_pred)),
@@ -1361,7 +1364,7 @@ server <- function(input, output, session) {
                     "Bernoulli" = rbinom(N, size = 1, prob = plogis(linear_pred))
     )
     
-    data.frame(y = sim_y, x = x, grp = grp)
+    data.frame(y = sim_y, x = x, grp = grp, z = z, unobs_cat = unobs_cat, v = v)
   })
   
   # Fit Model -------------------------------------------------------------
@@ -1452,12 +1455,19 @@ server <- function(input, output, session) {
     if (input$mod_family == "Binomial") {
       df$predicted <- input$sim_trials * df$predicted
     }
+    
     true_lp <- rep(0, nrow(df))
-    if (input$sim_use_x) {
-      true_lp <- true_lp + input$sim_intercept + input$sim_slope * df$x
-    } else {
-      true_lp <- true_lp + input$sim_intercept
+    
+    true_lp <- true_lp + input$sim_intercept
+    
+    if (isTRUE(input$sim_use_x)) {
+      if (isTRUE(input$nonlinear_x)) {
+        true_lp <- true_lp + input$sim_slope * (4 * sin(2 + 0.6 * df$x + 1))
+      } else {
+        true_lp <- true_lp + input$sim_slope * df$x
+      }
     }
+    
     if (input$sim_use_grp) {
       effect <- rep(0, nrow(df))
       effect[df$grp == "Group B"] <- input$sim_grpB
@@ -1627,22 +1637,35 @@ server <- function(input, output, session) {
     use_x <- input$sim_use_x
     use_grp <- input$sim_use_grp
     grp_count <- if (use_grp) as.numeric(input$sim_grps) else 0
+    nonlinear <- isTRUE(input$nonlinear_x)
     
     if (sim_dist == "Normal") {
       eq1 <- "$$ y_i \\sim Normal(\\mu_i, \\sigma^2) $$"
       if (use_x && use_grp) {
-        eq2 <- if (grp_count == 2) {
-          "$$ \\mu_i = \\beta_0 + \\beta_1\\,x_i + \\beta_2 \\times GrpB $$"
+        if (grp_count == 2) {
+          eq2 <- if (nonlinear) {
+            "$$ \\mu_i = \\beta_0 + f(x_i) + \\beta_2 \\times GrpB $$"
+          } else {
+            "$$ \\mu_i = \\beta_0 + \\beta_1\\,x_i + \\beta_2 \\times GrpB $$"
+          }
         } else {
-          "$$ \\mu_i = \\beta_0 + \\beta_1\\,x_i + \\beta_2 \\times GrpB + \\beta_3 \\times GrpC $$"
+          eq2 <- if (nonlinear) {
+            "$$ \\mu_i = \\beta_0 + f(x_i) + \\beta_2 \\times GrpB + \\beta_3 \\times GrpC $$"
+          } else {
+            "$$ \\mu_i = \\beta_0 + \\beta_1\\,x_i + \\beta_2 \\times GrpB + \\beta_3 \\times GrpC $$"
+          }
         }
       } else if (use_x) {
-        eq2 <- "$$ \\mu_i = \\beta_0 + \\beta_1\\,x_i $$"
-      } else if (use_grp) {
-        eq2 <- if (grp_count == 2) {
-          "$$ \\mu_i = \\beta_0 + \\beta_1 \\times GrpB $$"
+        eq2 <- if (nonlinear) {
+          "$$ \\mu_i = \\beta_0 + f(x_i) $$"
         } else {
-          "$$ \\mu_i = \\beta_0 + \\beta_1 \\times GrpB + \\beta_2 \\times GrpC $$"
+          "$$ \\mu_i = \\beta_0 + \\beta_1\\,x_i $$"
+        }
+      } else if (use_grp) {
+        if (grp_count == 2) {
+          eq2 <- "$$ \\mu_i = \\beta_0 + \\beta_1 \\times GrpB $$"
+        } else {
+          eq2 <- "$$ \\mu_i = \\beta_0 + \\beta_1 \\times GrpB + \\beta_2 \\times GrpC $$"
         }
       } else {
         eq2 <- "$$ \\mu_i = \\beta_0 $$"
@@ -1650,18 +1673,30 @@ server <- function(input, output, session) {
     } else if (sim_dist == "Poisson") {
       eq1 <- "$$ y_i \\sim Poisson(\\lambda_i) $$"
       if (use_x && use_grp) {
-        eq2 <- if (grp_count == 2) {
-          "$$ \\log(\\lambda_i) = \\beta_0 + \\beta_1\\,x_i + \\beta_2 \\times GrpB $$"
+        if (grp_count == 2) {
+          eq2 <- if (nonlinear) {
+            "$$ \\log(\\lambda_i) = \\beta_0 + f(x_i) + \\beta_2 \\times GrpB $$"
+          } else {
+            "$$ \\log(\\lambda_i) = \\beta_0 + \\beta_1\\,x_i + \\beta_2 \\times GrpB $$"
+          }
         } else {
-          "$$ \\log(\\lambda_i) = \\beta_0 + \\beta_1\\,x_i + \\beta_2 \\times GrpB + \\beta_3 \\times GrpC $$"
+          eq2 <- if (nonlinear) {
+            "$$ \\log(\\lambda_i) = \\beta_0 + f(x_i) + \\beta_2 \\times GrpB + \\beta_3 \\times GrpC $$"
+          } else {
+            "$$ \\log(\\lambda_i) = \\beta_0 + \\beta_1\\,x_i + \\beta_2 \\times GrpB + \\beta_3 \\times GrpC $$"
+          }
         }
       } else if (use_x) {
-        eq2 <- "$$ \\log(\\lambda_i) = \\beta_0 + \\beta_1\\,x_i $$"
-      } else if (use_grp) {
-        eq2 <- if (grp_count == 2) {
-          "$$ \\log(\\lambda_i) = \\beta_0 + \\beta_1 \\times GrpB $$"
+        eq2 <- if (nonlinear) {
+          "$$ \\log(\\lambda_i) = \\beta_0 + f(x_i) $$"
         } else {
-          "$$ \\log(\\lambda_i) = \\beta_0 + \\beta_1 \\times GrpB + \\beta_2 \\times GrpC $$"
+          "$$ \\log(\\lambda_i) = \\beta_0 + \\beta_1\\,x_i $$"
+        }
+      } else if (use_grp) {
+        if (grp_count == 2) {
+          eq2 <- "$$ \\log(\\lambda_i) = \\beta_0 + \\beta_1 \\times GrpB $$"
+        } else {
+          eq2 <- "$$ \\log(\\lambda_i) = \\beta_0 + \\beta_1 \\times GrpB + \\beta_2 \\times GrpC $$"
         }
       } else {
         eq2 <- "$$ \\log(\\lambda_i) = \\beta_0 $$"
@@ -1669,18 +1704,30 @@ server <- function(input, output, session) {
     } else if (sim_dist == "Binomial") {
       eq1 <- "$$ y_i \\sim Binomial(n, \\pi_i) $$"
       if (use_x && use_grp) {
-        eq2 <- if (grp_count == 2) {
-          "$$ logit(\\pi_i) = \\beta_0 + \\beta_1\\,x_i + \\beta_2 \\times GrpB $$"
+        if (grp_count == 2) {
+          eq2 <- if (nonlinear) {
+            "$$ logit(\\pi_i) = \\beta_0 + f(x_i) + \\beta_2 \\times GrpB $$"
+          } else {
+            "$$ logit(\\pi_i) = \\beta_0 + \\beta_1\\,x_i + \\beta_2 \\times GrpB $$"
+          }
         } else {
-          "$$ logit(\\pi_i) = \\beta_0 + \\beta_1\\,x_i + \\beta_2 \\times GrpB + \\beta_3 \\times GrpC $$"
+          eq2 <- if (nonlinear) {
+            "$$ logit(\\pi_i) = \\beta_0 + f(x_i) + \\beta_2 \\times GrpB + \\beta_3 \\times GrpC $$"
+          } else {
+            "$$ logit(\\pi_i) = \\beta_0 + \\beta_1\\,x_i + \\beta_2 \\times GrpB + \\beta_3 \\times GrpC $$"
+          }
         }
       } else if (use_x) {
-        eq2 <- "$$ logit(\\pi_i) = \\beta_0 + \\beta_1\\,x_i $$"
-      } else if (use_grp) {
-        eq2 <- if (grp_count == 2) {
-          "$$ logit(\\pi_i) = \\beta_0 + \\beta_1 \\times GrpB $$"
+        eq2 <- if (nonlinear) {
+          "$$ logit(\\pi_i) = \\beta_0 + f(x_i) $$"
         } else {
-          "$$ logit(\\pi_i) = \\beta_0 + \\beta_1 \\times GrpB + \\beta_2 \\times GrpC $$"
+          "$$ logit(\\pi_i) = \\beta_0 + \\beta_1\\,x_i $$"
+        }
+      } else if (use_grp) {
+        if (grp_count == 2) {
+          eq2 <- "$$ logit(\\pi_i) = \\beta_0 + \\beta_1 \\times GrpB $$"
+        } else {
+          eq2 <- "$$ logit(\\pi_i) = \\beta_0 + \\beta_1 \\times GrpB + \\beta_2 \\times GrpC $$"
         }
       } else {
         eq2 <- "$$ logit(\\pi_i) = \\beta_0 $$"
@@ -1688,26 +1735,38 @@ server <- function(input, output, session) {
     } else if (sim_dist == "Bernoulli") {
       eq1 <- "$$ y_i \\sim Bernoulli(\\pi_i) $$"
       if (use_x && use_grp) {
-        eq2 <- if (grp_count == 2) {
-          "$$ logit(\\pi_i) = \\beta_0 + \\beta_1\\,x_i + \\beta_2 \\times GrpB $$"
+        if (grp_count == 2) {
+          eq2 <- if (nonlinear) {
+            "$$ logit(\\pi_i) = \\beta_0 + f(x_i) + \\beta_2 \\times GrpB $$"
+          } else {
+            "$$ logit(\\pi_i) = \\beta_0 + \\beta_1\\,x_i + \\beta_2 \\times GrpB $$"
+          }
         } else {
-          "$$ logit(\\pi_i) = \\beta_0 + \\beta_1\\,x_i + \\beta_2 \\times GrpB + \\beta_3 \\times GrpC $$"
+          eq2 <- if (nonlinear) {
+            "$$ logit(\\pi_i) = \\beta_0 + f(x_i) + \\beta_2 \\times GrpB + \\beta_3 \\times GrpC $$"
+          } else {
+            "$$ logit(\\pi_i) = \\beta_0 + \\beta_1\\,x_i + \\beta_2 \\times GrpB + \\beta_3 \\times GrpC $$"
+          }
         }
       } else if (use_x) {
-        eq2 <- "$$ logit(\\pi_i) = \\beta_0 + \\beta_1\\,x_i $$"
-      } else if (use_grp) {
-        eq2 <- if (grp_count == 2) {
-          "$$ logit(\\pi_i) = \\beta_0 + \\beta_1 \\times GrpB $$"
+        eq2 <- if (nonlinear) {
+          "$$ logit(\\pi_i) = \\beta_0 + f(x_i) $$"
         } else {
-          "$$ logit(\\pi_i) = \\beta_0 + \\beta_1 \\times GrpB + \\beta_2 \\times GrpC $$"
+          "$$ logit(\\pi_i) = \\beta_0 + \\beta_1\\,x_i $$"
+        }
+      } else if (use_grp) {
+        if (grp_count == 2) {
+          eq2 <- "$$ logit(\\pi_i) = \\beta_0 + \\beta_1 \\times GrpB $$"
+        } else {
+          eq2 <- "$$ logit(\\pi_i) = \\beta_0 + \\beta_1 \\times GrpB + \\beta_2 \\times GrpC $$"
         }
       } else {
         eq2 <- "$$ logit(\\pi_i) = \\beta_0 $$"
       }
     }
-    
     withMathJax(HTML(paste(eq1, eq2)))
   })
+  
   
   # Model Equation for Fitting -------------------------------------------------------------
   output$model_eq <- renderUI({
@@ -1779,6 +1838,129 @@ server <- function(input, output, session) {
     }
     
     withMathJax(HTML(paste(eq1, eq2)))
+  })
+  
+  # Raw data figure ---------------------------------------------------------
+
+  output$rawFigures <- renderPlot({ 
+    
+    df <- simData()
+  
+    p_hist <- ggplot(df, aes(x = y)) + 
+      geom_histogram(fill = "white", color = "grey", bins = 30) + 
+      theme_minimal() + 
+      theme(
+        panel.background = element_blank(), 
+        plot.background = element_rect(fill = "#202123"), 
+        axis.title = element_text(color = "white", size = 12), 
+        axis.text = element_text(color = "white", size = 8), 
+        panel.grid.major = element_line(color = "#444654"), 
+        panel.grid.minor = element_line(color = "#444654"))
+    
+    p_scatter <- if (isTRUE(input$sim_use_x)) { 
+      ggplot(df, aes(x = x, y = y)) + 
+        geom_point(color = "white") + labs(x = "x") + 
+        theme_minimal() + 
+        theme(
+          panel.background = element_blank(), 
+          plot.background = element_rect(fill = "#202123"), 
+          axis.title = element_text(color = "white", size = 12), 
+          axis.text = element_text(color = "white", size = 8), 
+          panel.grid.major = element_line(color = "#444654"), 
+          panel.grid.minor = element_line(color = "#444654")) 
+    } else NULL
+    
+    p_box <- if (isTRUE(input$sim_use_grp)) { 
+      ggplot(df, aes(x = grp, y = y)) + 
+        geom_boxplot(fill = "white", color = "grey") + 
+        labs(x = "Group") + 
+        theme_minimal() + 
+        theme(
+          panel.background = element_blank(), 
+          plot.background = element_rect(fill = "#202123"), 
+          axis.title = element_text(color = "white", size = 12), 
+          axis.text = element_text(color = "white", size = 8), 
+          panel.grid.major = element_line(color = "#444654"), 
+          panel.grid.minor = element_line(color = "#444654")) 
+    } else NULL
+    
+    p_unobs_linear <- if (isTRUE(input$sim_unobs_linear) && ("z" %in% names(df))) { 
+      ggplot(df, aes(x = z, y = y)) + 
+        geom_point(color = "white") + 
+        labs(x = "Unobserved linear term") + 
+        theme_minimal() + 
+        theme(
+          panel.background = element_blank(), 
+          plot.background = element_rect(fill = "#202123"), 
+          axis.title = element_text(color = "white", size = 12), 
+          axis.text = element_text(color = "white", size = 8), 
+          panel.grid.major = element_line(color = "#444654"), 
+          panel.grid.minor = element_line(color = "#444654")) 
+    } else NULL
+    
+    p_unobs_cat <- if (isTRUE(input$sim_unobs_cat) && ("unobs_cat" %in% names(df))) { 
+      ggplot(df, aes(x = unobs_cat, y = y)) + 
+        geom_boxplot(fill = "white", color = "grey") + 
+        labs(x = "Unobserved categorical effect") + 
+        theme_minimal() + 
+        theme(
+          panel.background = element_blank(), 
+          plot.background = element_rect(fill = "#202123"), 
+          axis.title = element_text(color = "white", size = 12), 
+          axis.text = element_text(color = "white", size = 8), 
+          panel.grid.major = element_line(color = "#444654"), 
+          panel.grid.minor = element_line(color = "#444654")) 
+    } else NULL
+    
+    p_unobs_nonlinear <- if (isTRUE(input$sim_unobs_nonlinear) && ("v" %in% names(df))) { 
+      ggplot(df, aes(x = v, y = y)) + 
+        geom_point(color = "white") + 
+        labs(x = "Unobserved non-linear effect") + 
+        theme_minimal() + 
+        theme(
+          panel.background = element_blank(), 
+          plot.background = element_rect(fill = "#202123"), 
+          axis.title = element_text(color = "white", size = 12), 
+          axis.text = element_text(color = "white", size = 8), 
+          panel.grid.major = element_line(color = "#444654"), 
+          panel.grid.minor = element_line(color = "#444654")) 
+    } else NULL
+    
+    plot_list <- list(p_hist) 
+    
+    if (!is.null(p_scatter)) 
+      plot_list <- c(plot_list, list(p_scatter)) 
+    if (!is.null(p_box)) 
+      plot_list <- c(plot_list, list(p_box)) 
+    if (!is.null(p_unobs_linear)) 
+      plot_list <- c(plot_list, list(p_unobs_linear)) 
+    if (!is.null(p_unobs_cat)) 
+      plot_list <- c(plot_list, list(p_unobs_cat)) 
+    if (!is.null(p_unobs_nonlinear)) 
+      plot_list <- c(plot_list, list(p_unobs_nonlinear))
+    
+    combined_plot <- wrap_plots(plot_list, ncol = 2) + 
+      plot_annotation(
+        theme = theme(plot.background = element_rect(fill = "#202123", color = "#202123"))
+      )
+    
+    combined_plot
+    
+  })
+  
+  # Data table --------------------------------------------------------------
+  
+  output$rawData <- DT::renderDataTable({ 
+    df <- simData() 
+    cols <- "y"
+    if (isTRUE(input$sim_use_x)) cols <- c(cols, "x")
+    if (isTRUE(input$sim_use_grp)) cols <- c(cols, "grp")
+    if (isTRUE(input$sim_unobs_linear)) cols <- c(cols, "z")
+    if (isTRUE(input$sim_unobs_cat)) cols <- c(cols, "unobs_cat")
+    if (isTRUE(input$sim_unobs_nonlinear)) cols <- c(cols, "v")
+    
+    DT::datatable(df[, cols, drop = FALSE], options = list(pageLength = 10)) |> 
+      DT::formatStyle( columns = cols, backgroundColor = "#202123", color = "white", border = "1px solid grey" ) 
   })
   
 }
