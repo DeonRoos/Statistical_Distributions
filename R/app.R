@@ -8,6 +8,7 @@ library(extraDistr)
 library(shinydashboard)
 library(ggfortify)
 library(patchwork)
+library(dplyr)
 
 # Default Parameter Values -------------------------------------------------------------
 default_params <- list(
@@ -472,8 +473,8 @@ ui <- navbarPage(
              ),
              mainPanel(
                tabsetPanel(
-                 tabPanel("Predicted Relationship", plotOutput("predPlot")),
-                 tabPanel("Forest Plot", plotOutput("forestPlot")),
+                 tabPanel("Predicted Relationship", plotOutput("predPlot", width = "100%", height = "700px")),
+                 tabPanel("Forest Plot", plotOutput("forestPlot", width = "100%", height = "700px")),
                  tabPanel("Parameter Comparison",
                           tags$style(HTML("
               .dataTables_wrapper .dataTables_info,
@@ -500,7 +501,7 @@ ui <- navbarPage(
             ")),
             DT::dataTableOutput("paramSummary")
                  ),
-            tabPanel("Diagnostics", plotOutput("diagnosticsPlot")),
+            tabPanel("Diagnostics", plotOutput("diagnosticsPlot", width = "100%", height = "700px")),
             tabPanel("Raw Data Figures", plotOutput("rawFigures", width = "100%", height = "700px")),
             tabPanel("Raw Data", DT::dataTableOutput("rawData"))
                )
@@ -1451,29 +1452,28 @@ server <- function(input, output, session) {
   output$predPlot <- renderPlot({
     df <- simData()
     mod <- fitModel()
-    df$predicted <- predict(mod, newdata = df, type = "response")
-    if (input$mod_family == "Binomial") {
-      df$predicted <- input$sim_trials * df$predicted
-    }
+    # Get predicted values along with standard errors on the response scale.
+    pred_out <- predict(mod, newdata = df, se.fit = TRUE, type = "response")
+    df$predicted <- pred_out$fit
+    df$ci_lower <- df$predicted - 1.96 * pred_out$se.fit
+    df$ci_upper <- df$predicted + 1.96 * pred_out$se.fit
     
+    # Compute true values using our simulation logic.
     true_lp <- rep(0, nrow(df))
-    
-    true_lp <- true_lp + input$sim_intercept
-    
-    if (isTRUE(input$sim_use_x)) {
+    if (input$sim_use_x) {
       if (isTRUE(input$nonlinear_x)) {
-        true_lp <- true_lp + input$sim_slope * (4 * sin(2 + 0.6 * df$x + 1))
+        true_lp <- true_lp + input$sim_intercept + (4 * sin(2 + 0.6 * df$x + 1))
       } else {
-        true_lp <- true_lp + input$sim_slope * df$x
+        true_lp <- true_lp + input$sim_intercept + input$sim_slope * df$x
       }
+    } else {
+      true_lp <- true_lp + input$sim_intercept
     }
-    
     if (input$sim_use_grp) {
       effect <- rep(0, nrow(df))
       effect[df$grp == "Group B"] <- input$sim_grpB
-      if (as.numeric(input$sim_grps) == 3) {
+      if (as.numeric(input$sim_grps) == 3)
         effect[df$grp == "Group C"] <- input$sim_grpC
-      }
       true_lp <- true_lp + effect
     }
     df$true <- switch(input$sim_dist,
@@ -1482,16 +1482,16 @@ server <- function(input, output, session) {
                       "Binomial" = input$sim_trials * plogis(true_lp),
                       "Bernoulli" = plogis(true_lp)
     )
+    
     if (input$sim_use_x & input$sim_use_grp) {
       p <- ggplot(df, aes(x = x)) +
-        geom_point(aes(y = y), color = "grey") +
+        geom_ribbon(aes(x = x, ymin = ci_lower, ymax = ci_upper),
+                    data = df, fill = "#00A68A", alpha = 0.3, inherit.aes = FALSE) +
+        geom_point(aes(y = y), color = "white") +
         geom_line(aes(y = true, color = "Truth"), size = 1) +
         geom_line(aes(y = predicted, color = "Estimated"), size = 1, linetype = "dashed") +
         facet_wrap(~grp) +
-        labs(
-          title = "True vs Predicted Relationships by Group",
-          x = "x", y = "y", color = ""
-        ) +
+        labs(title = "True vs Predicted Relationships by Group", x = "x", y = "y", color = "") +
         scale_color_brewer(palette = "Dark2", breaks = c("Truth", "Estimated")) +
         theme_minimal() +
         theme(
@@ -1507,13 +1507,12 @@ server <- function(input, output, session) {
         )
     } else if (input$sim_use_x) {
       p <- ggplot(df, aes(x = x)) +
-        geom_point(aes(y = y), color = "grey") +
+        geom_ribbon(aes(x = x, ymin = ci_lower, ymax = ci_upper),
+                    data = df, fill = "#00A68A", alpha = 0.3, inherit.aes = FALSE) +
+        geom_point(aes(y = y), color = "white") +
         geom_line(aes(y = true, color = "Truth"), size = 1) +
         geom_line(aes(y = predicted, color = "Estimated"), size = 1, linetype = "dashed") +
-        labs(
-          title = "True vs Predicted Relationship",
-          x = "x", y = "y", color = ""
-        ) +
+        labs(title = "True vs Predicted Relationship", x = "x", y = "y", color = "") +
         scale_color_brewer(palette = "Dark2", breaks = c("Truth", "Estimated")) +
         theme_minimal() +
         theme(
@@ -1528,21 +1527,26 @@ server <- function(input, output, session) {
           panel.grid.minor = element_line(color = "#444654")
         )
     } else if (input$sim_use_grp) {
+      # For categorical predictors, compute group-level averages and CIs.
+      df_group <- df |> group_by(grp) |> summarize(
+        pred = predicted,
+        ci_lower = ci_lower,
+        ci_upper = ci_upper,
+        .groups = "drop"
+      )
       p <- ggplot(df, aes(x = grp)) +
-        geom_boxplot(aes(y = y), fill = "#72758d", colour = "white") +
+        geom_errorbar(data = df_group, aes(x = grp, ymin = ci_lower, ymax = ci_upper),
+                      color = "#00A68A", width = 0.2) +
+        geom_jitter(aes(y = y), width = 0.2, height = 0, size = 0.5, color = "white") +
         geom_point(aes(y = true, color = "Truth"), size = 3) +
         geom_point(aes(y = predicted, color = "Estimated"), size = 3, shape = 17) +
-        labs(
-          title = "True vs Predicted Group Means",
-          x = "Group", y = "y", color = ""
-        ) +
+        labs(title = "True vs Predicted Group Means", x = "Group", y = "y", color = "") +
         scale_color_brewer(palette = "Dark2", breaks = c("Truth", "Estimated")) +
         theme_minimal() +
         theme(
           panel.background = element_blank(),
           plot.background = element_rect(fill = "#202123"),
           plot.title = element_text(color = "white", size = 14),
-          plot.subtitle = element_text(color = "white", size = 12),
           axis.title = element_text(color = "white", size = 12),
           axis.text = element_text(color = "white", size = 8),
           legend.title = element_text(color = "white", size = 12),
@@ -1555,20 +1559,16 @@ server <- function(input, output, session) {
         )
     } else {
       p <- ggplot(df, aes(x = 1:nrow(df), y = y)) +
-        geom_point(color = "grey") +
+        geom_point(color = "white") +
         geom_line(aes(y = true, color = "Truth"), size = 1) +
         geom_line(aes(y = predicted, color = "Estimated"), size = 1, linetype = "dashed") +
-        labs(
-          title = "True vs Predicted (Intercept-only model)",
-          x = "Observation", y = "y", color = ""
-        ) +
+        labs(x = "Observation", y = "y", color = "") +
         scale_color_brewer(palette = "Dark2", breaks = c("Truth", "Estimated")) +
         theme_minimal() +
         theme(
           panel.background = element_blank(),
           plot.background = element_rect(fill = "#202123"),
           plot.title = element_text(color = "white", size = 14),
-          plot.subtitle = element_text(color = "white", size = 12),
           axis.title = element_text(color = "white", size = 12),
           axis.text = element_text(color = "white", size = 8),
           legend.title = element_text(color = "white", size = 12),
